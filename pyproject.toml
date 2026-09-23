@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "svml"
+version = "0.1.0"
+description = "AI-based structural variant detection using long-read sequencing data"
+requires-python = ">=3.11"
+
+[project.scripts]
+svml = "svml.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# UP042: `str, Enum` is deliberate -- these values are JSON-serialised and compared
+# against plain strings throughout, which StrEnum would not change but would make
+# less obvious at the definition site.
+ignore = ["E501", "UP042"]

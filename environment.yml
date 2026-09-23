@@ -1,0 +1,76 @@
+# Conda/Mamba environment (spec section 23).
+#
+# MUST be created inside WSL2 or Docker. Minimap2, SAMtools, Sniffles2, cuteSV,
+# bcftools, SURVIVOR and Truvari have no native Windows builds (finding M4).
+#
+#   mamba env create -f environment.yml
+#   conda activate svml
+#
+# Versions are pinned where practical. Exact resolved versions are captured into
+# results/report/run_metadata.json at every pipeline run.
+
+name: svml
+
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+
+dependencies:
+  # --- core ---
+  - python=3.11
+  - snakemake-minimal=8.*
+  - pyyaml
+  - jsonschema
+
+  # --- alignment and BAM handling ---
+  - minimap2=2.28
+  - samtools=1.20
+  - pysam=0.22.*
+
+  # --- QC ---
+  - nanoplot=1.42.*
+  # NanoPlot 1.42 imports kaleido.scopes, removed in kaleido 1.x.
+  - python-kaleido=0.2.*
+
+  # --- SV calling ---
+  # Sniffles 2.6 rather than 2.4: 2.4 depends on `edlib>=1.3.9`, which does not resolve
+  # on current channels; 2.6 depends on `python-edlib`, which does.
+  - sniffles=2.6
+  - cutesv=2.1.*
+
+  # --- VCF / interval handling and merging (finding H5) ---
+  - bcftools=1.20
+  - bedtools=2.31.*
+  - survivor=1.0.7
+  - pybedtools
+
+  # --- benchmarking: same tool for labelling and evaluation (finding H5) ---
+  - truvari=4.*
+
+  # --- machine learning ---
+  - scikit-learn=1.5.*
+  - xgboost=2.1.*
+  - pandas=2.2.*
+  - numpy=1.26.*
+  - pyarrow           # parquet feature matrices
+  - scipy
+
+  # --- explainability ---
+  - shap=0.46.*
+
+  # --- visualisation ---
+  - matplotlib=3.9.*
+  - seaborn=0.13.*
+  - plotly
+
+  # --- reporting ---
+  - jupyterlab
+  - nbconvert
+  - jinja2
+  - weasyprint        # HTML -> PDF
+
+  # --- testing and quality ---
+  - pytest=8.*
+  - pytest-cov
+  - ruff
