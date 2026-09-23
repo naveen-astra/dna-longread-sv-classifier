@@ -1,0 +1,278 @@
+# Execution Plan
+
+Required by PROJECT MASTER CONTEXT §26(H). Maps the §25 phases onto the revised
+architecture, with an explicit exit test per phase (§36: "at the end of each development
+stage, run a small real-data test before proceeding").
+
+## Implementation status
+
+| Phase | Code written | Executed against real data |
+|---|---|---|
+| 0 Environment | n/a | **No** — WSL2 + conda env not yet created |
+| 1 Architecture | ✅ `docs/` | ✅ complete |
+| 2 References | ✅ `00_references.smk` | **No** — needs truth filenames resolved |
+| 3 Ingestion | ✅ `01_acquire.smk` | **No** — needs sample source URLs |
+| 4 QC | ✅ `02_qc.smk` | **No** |
+| 5 Alignment | ✅ `03_align.smk` | **No** |
+| 6 SV calling + merge | ✅ `04_call.smk`, `05_merge.smk` | **No** |
+| 7 Features | ✅ `06_features.smk`, `svml.features` | **No** |
+| 8 Labels | ✅ `07_labels.smk`, `svml.labels` | **No** |
+| 9 ML | ✅ `08_train.smk`, `svml.ml` | **No** |
+| 10 Benchmark | ✅ `09_benchmark.smk`, `svml.eval` | **No** |
+| 11 SHAP | ✅ `10_explain.smk`, `svml.explain` | **No** |
+| 12 Report | ✅ `11_report.smk`, `svml.report` | **No** |
+| 13 Reproducibility | ✅ `environment.yml`, README | **No** |
+
+What *has* been verified without real data: 76 unit tests pass (1 skipped -- xgboost is
+not installed on the Windows host), `ruff` is clean, and
+`snakemake --dry-run` resolves the full 68-job DAG plus all three milestone targets.
+
+**There are no experimental results in this repository.** Nothing has been run end to
+end, so no precision, recall or F1 number exists. None has been invented to fill the gap
+(§28); the report renders absent values as `TBD`.
+
+---
+
+## Deviations found by running against real tools and data
+
+Spec §9 requires tool behaviour to be inspected rather than assumed. Doing so forced the
+changes below. Each is recorded here because several change what a reported number means.
+
+| # | Planned | Changed to | Why (evidence) |
+|---|---|---|---|
+| D1 | Merge with SURVIVOR | `truvari collapse` | SURVIVOR emits symbolic alleles (`<DEL>`). Truvari 4.3.1 source, `matching.py`: *"Unresolved SVs (e.g. ALT=<DEL>) are filtered when `--pctseq != 0`"*. A SURVIVOR-merged set would have produced **zero labels**. Collapse keeps the callers' sequence-resolved alleles. |
+| D2 | `truvari bench --refine` | refine **off** | Refine writes re-evaluated regions to a separate phab output instead of updating bench's TP/FP calls, so it cannot feed candidate-level labels without a second matching pass; it also needs `mafft`. Labels and metrics both use plain bench with sequence similarity — identically. Limitation: some representation differences will count as errors. |
+| D3 | `--passonly` | off | Non-PASS caller calls are still candidates the model must judge; requiring PASS would silently drop them from labelling and bias the negative class. |
+| D4 | Sniffles 2.4 | Sniffles 2.6.2 | 2.4 depends on `edlib>=1.3.9`, which does not resolve on current channels. |
+| D5 | Pilot = chr19 only | Windows on chr16 (train), chr19 (val), chr22 (test) | The split is chromosome-grouped, so a single-chromosome pilot has two empty splits and **cannot train**. `config.py` now refuses such a config. Windows were chosen from the truth set (SV count, confident coverage) to fit a ~4 GB download at the measured ~0.5 MB/s. They are SV-rich sub-telomeric regions: pilot metrics are **not genome-representative**. |
+| D6 | Recall over candidates | Recall over **truth** | Every candidate is in the union, so candidate-level recall made the "union recall ceiling" always 1.0 — hiding exactly what finding H2 exists to show. Truth SVs no caller proposed (truvari `fn.vcf.gz`, inside the evaluated windows) are now false negatives for every method. |
+| D7 | Union = support columns present | Union = every merged candidate | Candidates whose provenance reconciliation found no per-caller record were silently outside the union. |
+| D8 | minimap2 single-part index | `-I 2G` multi-part index + `--split-prefix` | WSL2 exposes ~7 GB RAM; minimap2's documented low-memory mode merges per-part hits correctly. |
+| D9 | Reference from ftp.ncbi.nlm.nih.gov | GIAB's copy of the same GCA_000001405.15 no-alt set | Measured ~50% faster from this host. Same assembly. |
+| D10 | `labels.truvari.pctseq: 0.7` | `pctseq: 0.0` | Verified directly: `truvari bench` prints *"Unresolved SVs (e.g. ALT=<DEL>) are filtered when `--pctseq != 0`"* and does exactly that. Sniffles2/cuteSV represent DEL/DUP/INV as symbolic ALT (`<DEL>` etc.), so `pctseq>0` would have silently dropped nearly every candidate from comparison before matching, producing near-zero labels. Matching is now by position, size and type only — the standard setting for symbolic SV callsets, not a weakened match. Same YAML anchor feeds both labelling and evaluation, so both were fixed by one edit. |
+| D11 | `truvari bench`/`truvari collapse` called directly | Routed through `svml._truvari_entry` | **Root-caused by direct testing**, not assumed: both subcommands call `truvari.compress_index_vcf()` to finalize (bgzip+index) their output, which calls `pysam.bcftools.sort()` — pysam's own ctypes-bundled bcftools. That call crashes in this WSL2 environment with a garbled `Permission denied: Unknown error <garbage>`, confirmed reproducible across truvari 4.2.2/4.3.1/5.4.0 and pysam 0.22.1/0.24.1 (all five combinations tested), so it is not a version-pinning problem. The comparison engine itself is unaffected — a synthetic match test produced a correct `TruScore`/`PctSizeSimilarity` before the finalization crash. `_truvari_entry.py` replaces only `compress_index_vcf` with an equivalent using the system `bcftools`/`bgzip`/`tabix` binaries (which work correctly) and otherwise runs truvari's normal CLI. A second, independent bug surfaced while writing that replacement: `bcftools sort --temp-dir /tmp` (no trailing slash) makes bcftools attempt `mkdtemp("/tmpXXXXXX")` — a sibling of `/tmp`, inside `/` — which fails with permission denied; needs `--temp-dir /tmp/`. Both fixes verified end-to-end via the real `svml.labels.match.run_bench` and `svml.candidates.merge.run_truvari_collapse` Python APIs, not just the CLI. |
+| D12 | Per-rule `conda:` directives | Removed from all 12 rule files | Even without `--use-conda`, Snakemake's job-error reporter unconditionally calls `conda info --json` for any rule carrying a `conda:` directive, to compute an environment hash. With no real `conda` on PATH this crashed (`KeyError: 'conda_prefix'`), and a first attempt to shim the call with a minimal fake JSON crashed differently one key later (`KeyError: 'platform'`). Since every tool already lives in the single `svml` environment (`environment.yml`), the directives were pure liability with no functional benefit here; removing them eliminates the bug class rather than chasing further keys `snakemake/deployment/conda.py` happens to read. `workflow/envs/*.yaml` are kept as documentation of the original per-stage tool grouping, but are no longer referenced by any rule. |
+| D13 | WSL2 default memory (~7.6 GB) | `.wslconfig` raised to 12 GB (11 GB usable) | Whole-genome minimap2 indexing was OOM-killed by the kernel (`dmesg`: `oom-kill ... task=minimap2 ... anon-rss:7480284kB`) against a default WSL2 allocation of roughly half the host's 16 GB. `-I 2G` (multi-part indexing) controls index *batch* size, not the peak memory of the minimizer-sorting step that actually OOM'd, so it did not help on its own. Fixed by raising the VM's memory ceiling instead, since the host has headroom. Requires `wsl --shutdown` to take effect; already-downloaded resource files persist across the restart (verified), only in-flight processes are lost. |
+| D14 | `align.extra: "-Y --MD"` | `"-Y"` (dropped `--MD`) | minimap2 refuses `--MD` combined with `--split-prefix`: `[ERROR] --cs or --MD doesn't work with --split-prefix`. `--split-prefix` is required for the low-memory multi-part index (D8/D13). No feature loss: `io/bam.py` reads the `NM` tag, which minimap2 populates regardless of `--MD`; the separate MD string tag `--MD` adds is not read anywhere in this codebase. Confirmed by grep before removing the flag, not assumed. |
+| D15 | `_collect_ids()` read a guessed `MatchedSVType` INFO field | Reads the candidate's own `SVTYPE` instead, safely | Real truvari 4.3.1 `tp-comp.vcf.gz` output (inspected directly, not assumed) annotates match-quality metrics (`PctSeqSimilarity`, `TruScore`, `MatchId`, ...) but never the matched truth record's own SVTYPE. Since this project's config never sets `--typeignore`, truvari's default matching already requires type compatibility, so a record's presence in `tp-comp.vcf.gz` guarantees its own declared SVTYPE matches the truth's. Also fixed: `pysam`'s `rec.info.get(key)` raises `ValueError` (not `KeyError`) for a key the VCF header never declares at all, which the original code did not catch. |
+| D16 | Multiclass predictions decoded via `meta.classes[argmax(probs)]` | Decoded via `model.classes_[argmax(probs)]`, then through `meta.classes` | **A genuine correctness bug, found because Stage C's real pseudo-label distribution is sparse enough to trigger it** (DUP and TRA never appear in the training fold at this pilot scale). When a declared class is entirely absent from training, scikit-learn's fitted `.classes_` is a strict subset of the full class list, in sorted order, and `predict_proba()`'s columns correspond to that subset -- not to the full declared range `meta.classes` was built from. The original code silently misdecoded columns (verified: every true INS was decoded as "DUP", every true TRA as "DEL", corrupting macro-F1 from a true 0.397 down to 0.197). Stage A and B never hit this, since their few classes are always fully present, which is why it went uncaught until Stage C ran on real data. Fixed and covered by a regression test (`test_multiclass_prediction_decoding_survives_absent_training_classes`) that reproduces the exact subset-class scenario. |
+| D17 | `rule all` / `benchmark_models()` required XGBoost for every stage | Stage C requires only Random Forest (`models_for_stage()`) | XGBoost's sklearn wrapper raises rather than degrading when a declared class is absent from `y_train` (see D16's root cause) -- unlike Random Forest, which trains successfully on the identical sparse data. Requiring XGBoost for Stage C therefore made the DAG permanently unsatisfiable at this pilot's data scale, not something a retry fixes. Stage A and B still require both models; only Stage C's requirement changed. |
+| D18 | `cmd_report`'s `--qc`/`--align-stats` accepted one path, `build_report()` expected `{sample_id: {...}}` | Both now accept multiple paths (`nargs="*"`), keyed by each file's own `sample_id` field | A latent wiring bug, never previously exercised end to end: the report command only ever passed the primary labelled sample's flat metrics dict directly where a `{sample: {...}}` mapping was expected, so `.items()` iterated the dict's own keys (`"sample_id"`, `"n_reads"`, ...) instead of per-sample entries, and crashed on the first non-dict value (`'str' object has no attribute 'get'`). Fixed to build the mapping from all three samples' QC and alignment files, which happen to already exist -- delivering the per-sample summary spec section 19 asks for, not just unblocking the crash. |
+| D19 | `write_annotated_vcf()` used `header.copy()` + `rec.translate(header)` | Modifies `src.header` in place; writes `rec` directly with fields set on it, no `.translate()` | **Root-caused by direct, isolated reproduction against the real merged-candidate VCF, not left as a mystery.** An intermediate fix that skipped untranslatable records first surfaced the true scope: `.translate()` against a *copied* header returned `None` for **every single record** (1,495 of 1,495, all types -- DEL/INS/BND alike), silently producing an empty output file behind a "wrote N annotated records" log line that was actually zero. Isolated with a 20-line standalone repro: `header.copy()` followed by `.translate()` fails universally on this pysam version, while modifying `src.header` in place (`header.add_meta(...)`) and writing the original `rec` directly -- with the new INFO fields set on it beforehand -- works cleanly for every record. This is the standard pysam idiom for annotating an existing VCF; `copy()`+`translate()` was the actual defect, not a property of any specific record. The skip-and-log workaround was removed once the real fix was found, since it is no longer needed. |
+
+Stage C training itself failed outright for XGBoost (both ablations): its sklearn wrapper requires contiguous class indices in `y_train`, and raises rather than silently degrading, unlike Random Forest, which trained successfully and is what D16's fix was verified against. This is a genuine data-scale limitation of the Tier-1 pilot's pseudo-label distribution, not a code defect -- Stage A and Stage B, both fully benchmarked, trained and evaluated without issue on the same dataset. Expected to resolve at Tier-2 scale without any code change.
+
+A separate, initially-alarming finding turned out to be a test-harness artifact, not a code bug: hand-written synthetic VCFs missing the spec-required `##ALT=<ID=DEL,...>` and `##INFO=<ID=END,...>` header declarations made `truvari collapse` fail differently (`INFO tag id=N is too large`) on ANY multi-record chunk. Real Sniffles2/cuteSV output always declares these, so `merge.py`'s original design needed no change — only the test data was wrong. Recorded here because it consumed real diagnostic effort and the distinction (tool bug vs. malformed test input) matters for anyone re-verifying this.
+
+Pipeline bugs found the same way and fixed (no scientific change): `samtools fastq -0`
+discarding every single-end read; htslib caching remote indexes in the repo; NanoPlot
+metric-name aliases; NanoPlot needing `kaleido` 0.2; SURVIVOR not reading `.vcf.gz`;
+non-unique merged IDs (which would have mis-joined labels); Snakemake's error reporter
+crashing without `conda`; and CRLF line endings introduced on the Windows host, which
+would have broken every shell rule under Linux (now blocked by `.gitattributes`).
+
+---
+## Phase 0 — Environment (blocker; finding M4)
+
+The host is Windows 11. Minimap2, SAMtools, Sniffles2, cuteSV, bcftools, SURVIVOR and
+Truvari have **no native Windows builds**. Snakemake would fail at the first alignment rule.
+
+Steps:
+1. Install **WSL2 + Ubuntu**.
+2. Install Mamba inside WSL; create the env from `environment.yml`.
+3. Keep the repo on the Windows drive for editing, but set `workdir` in `config.yaml` to a
+   path **inside** the WSL filesystem (e.g. `~/svml-work`). `/mnt/d/...` I/O is slow enough
+   to dominate runtime on alignment and depth queries.
+4. Record all tool versions into `run_metadata.json`.
+
+**Exit test:** `minimap2 --version`, `sniffles --version`, `cuteSV --version`,
+`truvari version`, `samtools --version` all succeed inside the env, and
+`snakemake --cores 1 --dry-run` resolves the DAG.
+
+---
+
+## Phase 1 — Architecture ✅ COMPLETE
+
+Deliverables: `docs/00`–`docs/06`, `config/`, this plan. The pipeline implementation
+(`src/svml/`, `Snakefile`, `workflow/rules/`, `tests/`) is also written and unit-tested,
+but has not been executed.
+
+**Exit test:** the three sign-off decisions in `00_architecture_evaluation.md` are
+confirmed, in particular the restatement of O3.
+
+**Gate: do not start Phase 2 until O3 is resolved.** If the course requires a benchmarked
+five-class result, that must be raised with the instructor now, not at submission — no
+amount of downstream engineering creates DUP/INV/TRA labels that GIAB does not contain.
+
+---
+
+## Phase 2 — Reference & annotation prep (new; finding M1)
+
+Runs before data ingestion because everything downstream depends on it.
+
+- Fetch GRCh38 **no-alt analysis set**; `samtools faidx`; build `minimap2 -d` index.
+- Fetch UCSC `rmsk`, `simpleRepeat`, `genomicSuperDups`, gap track; normalise to sorted BED.
+- Fetch GIAB **v5.0q `stvar` GRCh38** truth VCF + confident-region BED.
+- Verify every checksum against `config/references.yaml`.
+
+**Exit test:** all assets present, checksums match, contig naming is consistent
+(`chr1` vs `1`) across reference, annotations and truth. Contig-naming mismatch is the most
+common silent failure in this kind of pipeline — check it explicitly rather than assuming.
+
+---
+
+## Phase 3 — Data ingestion (§25 Phase 2; finding M2)
+
+- Write `config/samples.tsv`: HG002-ONT, HG002-HiFi, HG005-ONT.
+- For each: download the GIAB pre-aligned BAM index, slice the pilot region
+  (`samtools view -b <region>`), convert to FASTQ (`samtools fastq`).
+- Record sample ID, platform, coverage, source URL, and slice region in metadata.
+- Raw data is read-only from here on (§9).
+
+**Exit test:** three region-sliced FASTQs exist, read counts are non-zero and plausible for
+the region's expected coverage, and no original download was modified.
+
+---
+
+## Phase 4 — QC (§25 Phase 3)
+
+NanoPlot per sample → parse into `qc_metrics.json` (read count, total bases, N50, length
+and quality distributions, estimated coverage).
+
+**Exit test:** N50 and median quality are consistent with the platform (ONT vs HiFi differ
+substantially). Any filtering rule applied is written down (§9) — no undocumented discards.
+
+---
+
+## Phase 5 — Alignment (§25 Phase 4)
+
+`minimap2 -ax map-ont` (ONT) / `map-hifi` (HiFi) → `samtools sort` → `index` → `stats`.
+Reference path comes from config (§9).
+
+**Exit test:** mapping rate >90% for ONT, BAM index present, `samtools quickcheck` passes,
+and coverage in the target region matches the QC estimate. A large discrepancy here means
+the slice region and the alignment region disagree.
+
+---
+
+## Phase 6 — SV calling + merging (§25 Phase 5; milestone 1)
+
+- Run Sniffles2 and cuteSV.
+- **Inspect the real VCF headers and INFO fields before writing any parser** (§9 Stage 4
+  explicitly requires this). Do not assume `SUPPORT`/`RE` field names — confirm them.
+- `bcftools norm`, filter SVLEN ≥ 50 bp.
+- Merge with SURVIVOR/Jasmine, preserving per-caller provenance for `n_callers`.
+
+**Exit test — this is FIRST MILESTONE (§34):** both VCFs valid and indexable; candidate
+counts within an order of magnitude of published expectations for the region; merged set
+smaller than the naive concatenation; `n_callers` distribution sensible. Manually inspect
+~10 candidates in IGV.
+
+---
+
+## Phase 7 — Feature extraction (§25 Phase 6; milestone 2)
+
+Implement Groups B, A, C, V per `03_feature_dictionary.md`, driven by
+`features/registry.py`.
+
+**Exit test:** run all six validation gates from the feature dictionary. Manually inspect
+the feature table (§25 Phase 6 requires this explicitly). Confirm `dp_flank_ratio` is
+visibly lower for confident DEL candidates than for random loci — if that basic sanity
+check fails, the depth computation is wrong and nothing downstream is trustworthy.
+
+---
+
+## Phase 8 — Labelling (§25 Phase 7; finding H4)
+
+- Apply the confident-region gate.
+- `truvari bench` against v5.0q with `--refine`.
+- Emit `is_true` ∈ {1, 0, NA} and `true_sv_type`.
+
+**Exit test:** report counts in all three buckets. Manually curate ~20 candidates from each
+of `is_true=1` and `is_true=0` to confirm the labels are believable. If the `NA` fraction is
+very large, the pilot region may be poorly covered by confident regions — reconsider the
+region before proceeding, rather than training on a handful of labels.
+
+---
+
+## Phase 9 — ML baseline (§25 Phase 8; milestone 3)
+
+- Chromosome-grouped split; assert disjointness in `tests/test_splits.py`.
+- Train RF and XGBoost for Stage A, then Stage B, then Stage C.
+- Both ablations (`B+A`, `B+A+C+V`).
+- Hyperparameter search on **validation only**. Calibrate probabilities.
+- Establish a trivial baseline first (predict majority class; predict `n_callers==2`) so
+  there is something to beat before tuning anything (§14: do not over-engineer before a
+  baseline exists).
+
+**Exit test:** models beat the trivial baselines on validation. Test split still untouched.
+
+---
+
+## Phase 10 — Benchmark (§25 Phase 9)
+
+All six baselines, `05_evaluation_protocol.md` in full: three comparison views, strata,
+bootstrap CIs, ablation.
+
+**Exit test:** test split read exactly **once**, with models and thresholds frozen
+beforehand. Results reported whether or not they are favourable (§28).
+
+---
+
+## Phase 11 — Explainability (§25 Phase 10)
+
+SHAP for both models: global importance, beeswarm, per-prediction explanations, dependence
+plots for the top features.
+
+**Exit test:** SHAP's top features are consistent with the biology stated in the feature
+dictionary. Where they disagree, investigate — a disagreement is either a wrong rationale in
+the dictionary or a bug in the feature, and both need resolving before the report.
+
+---
+
+## Phase 12 — Reporting (§25 Phase 11)
+
+All 20 sections of §19, plus every output A–Q from §18. Error analysis with IGV curation.
+Limitations must state: no DUP/INV/TRA truth; single labelled sample; region-scoped
+analysis; confident regions exclude the hardest loci; v5.0q is a draft benchmark.
+
+**Exit test:** a reader can trace one specific SV from raw read through to prediction and
+explanation (§36's final requirement).
+
+---
+
+## Phase 13 — Reproducibility (§25 Phase 12)
+
+Clean clone, fresh env, `snakemake --cores 4`, end to end. Verify restartability by
+deleting a mid-pipeline output and confirming only downstream rules rerun.
+
+**Exit test:** a second person reproduces the headline metrics from the README alone.
+
+---
+
+## Scaling checkpoint
+
+Between Phase 10 and Phase 11, decide whether to scale from Tier 1 (pilot chromosome) to
+Tier 2 (full chromosome set) based on measured per-chromosome runtime and storage. Record
+the decision and the measurements. Do not scale before the pipeline is validated end to end
+(§24).
+
+---
+
+## Critical path and risk
+
+```
+Phase 0 ──► 1 ──► 2 ──► 3 ──► 4 ──► 5 ──► 6 ──► 7 ──► 8 ──► 9 ──► 10 ──► 11 ──► 12 ──► 13
+            ▲                               │                   │
+        O3 GATE                     MILESTONE 1         MILESTONE 3
+                                    MILESTONE 2 (P7)    MILESTONE 4 (P10-12)
+```
+
+| Risk | Phase | Mitigation |
+|---|---|---|
+| O3 five-class expectation unresolved | 1 | **Raise with instructor now.** Highest-impact risk in the project |
+| WSL setup consumes days | 0 | Start immediately, in parallel with Phase 1 sign-off |
+| Contig naming mismatch | 2 | Explicit check in the exit test |
+| Too few labelled candidates in pilot region | 8 | Check confident-region coverage of the region during Phase 2, before committing |
+| ML fails to beat the intersection baseline | 10 | A legitimate result. Report it; error analysis explains why. Do not tune against test to avoid it |
+| v5.0q draft-benchmark errors | 10 | IGV curation of FP/FN subset, as its README recommends |
