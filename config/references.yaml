@@ -1,0 +1,96 @@
+# Reference and annotation assets (Stage 0 / Phase 2, finding M1).
+#
+# Every asset carries url + build + version so the run is reproducible (spec section 23).
+# URLs live here, never in code, so a source-layout change is a config edit (spec section 7).
+#
+# md5 fields are TODO until Phase 2 downloads and records them. Do not invent checksums.
+
+genome:
+  id: GRCh38_no_alt_analysis_set
+  build: GRCh38
+  # no-alt analysis set: ALT contigs fragment long-read alignments and generate
+  # spurious SV signatures. This choice is deliberate, not incidental.
+  # GIAB's copy of the same GCA_000001405.15 no-alt analysis set: it measured ~50% faster
+  # than ftp.ncbi.nlm.nih.gov from this host. Original source, for provenance:
+  # https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+  url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/references/GRCh38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fasta.gz"
+  contig_naming: "chr"      # verify consistency against annotations + truth in Phase 2
+  md5: TODO
+  derived:
+    faidx: "samtools faidx"
+    minimap2_index: "minimap2 -d {out}.mmi {in}"
+
+truth:
+  # PRIMARY (finding B2): GRCh38-native, so no lossy liftover of SV coordinates or
+  # confident-region intervals is needed.
+  #
+  # NOTE the benchmark caveats recorded in 00_architecture_evaluation.md:
+  #   - draft benchmark; does not exclude complex SVs
+  #   - benchmark regions exclude inversion interiors
+  #   - README recommends `truvari bench --refine` and manual curation of FP/FN subsets
+  #   - provides NO reliable DUP / INV / TRA type labels  -> see finding B1
+  v5_0q_stvar_grch38:
+    release: "GIAB HG002 v5.0q"
+    build: GRCh38
+    sample: HG002
+    base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/v5.0q/"
+    # Filenames and md5s verified against the release's checksum.md5 on 2026-09-22.
+    vcf: "HG002_GRCh38_v5.0q_stvar.vcf.gz"
+    bed: "HG002_GRCh38_v5.0q_stvar.benchmark.bed"   # confident regions -> the H4 gate
+    md5:
+      vcf: "34dbeeac5eb3fc09e94c5cb8cfe9e24f"
+      tbi: "df639c204bf457f22248220602ea183e"
+      bed: "55fc11c80ff376c0a8da99d0c69004f3"
+
+  # SECONDARY / sanity check only. GRCh37 ONLY and DEL+INS only:
+  # README_SV_v0.6.txt states "All now are DEL or INS" and "GRCh38 callsets are under
+  # development". Cannot be the primary truth for a GRCh38 project (finding B2).
+  nist_sv_v0_6_grch37:
+    release: "GIAB HG002 NIST_SV_v0.6"
+    build: GRCh37
+    sample: HG002
+    enabled: false
+    base_url: "https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NIST_SV_v0.6/"
+    vcf: "HG002_SVs_Tier1_v0.6.vcf.gz"
+    bed: "HG002_SVs_Tier1_noVDJorXorY_v0.6.2.bed"
+
+  # WARNING: NISTv4.2.1 is the SMALL VARIANT benchmark (SNV/indel), NOT structural
+  # variants. The project spec section 7 cited it as the SV ground truth; that is an
+  # error. Recorded here so it is not reintroduced.
+  # https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/
+
+annotations:
+  # Required for the mandated `repeat_context` feature family (Group A).
+  # UCSC table-browser tracks for hg38. Resolve exact download paths in Phase 2.
+  simple_repeat:
+    track: simpleRepeat
+    build: hg38
+    url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz"
+    feature: tr_overlap_frac        # A1
+    md5: TODO
+  repeatmasker:
+    track: rmsk
+    build: hg38
+    url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/rmsk.txt.gz"
+    feature: rmsk_overlap_frac      # A2
+    md5: TODO
+  segmental_duplications:
+    track: genomicSuperDups
+    build: hg38
+    url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/genomicSuperDups.txt.gz"
+    feature: segdup_overlap         # A3
+    md5: TODO
+  assembly_gaps:
+    track: gap
+    build: hg38
+    url: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/gap.txt.gz"
+    feature: dist_to_nearest_gap    # A4
+    md5: TODO
+
+# Phase 2 exit test: confirm contig naming is consistent (chr1 vs 1) across genome,
+# every annotation track, and the truth VCF/BED. Mismatch here is the most common
+# silent failure mode in this kind of pipeline.
+validation:
+  check_contig_naming: true
+  check_md5: true
+  check_confident_region_coverage_of_pilot: true   # guards the Phase 8 risk

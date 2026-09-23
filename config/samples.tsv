@@ -1,0 +1,17 @@
+# Sample manifest (spec section 9 stage 1).
+# Satisfies O1 "at least 3 public samples" at the BAM level. Only HG002 has SV truth,
+# so the supervised ML uses HG002 alone, split by chromosome (finding H3).
+#
+# role:
+#   labelled       - has GIAB SV truth; used for train/val/test
+#   generalisation - has truth, different platform; held-out platform-shift test
+#   unlabelled     - no SV truth; pipeline robustness demonstration only
+#
+# source_url and coverage are filled in during Phase 3 from the GIAB data index:
+#   https://github.com/genome-in-a-bottle/giab_data_indexes
+# Reads are acquired region-sliced from pre-aligned GIAB BAMs (finding M2), then
+# converted back to FASTQ so the genuine FASTQ -> Minimap2 -> BAM path is exercised.
+sample_id	platform	preset	role	truth	coverage	source_url	notes
+HG002_ONT	ONT	map-ont	labelled	v5_0q_stvar_grch38	measured_in_qc	https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/HG002_NA24385_son/Ultralong_OxfordNanopore/guppy-V3.2.4_2020-01-22/HG002_GRCh38_ONT-UL_GIAB_20200122.phased.bam	Primary sample. Chromosome-grouped split for train/val/test.
+HG002_HIFI	HIFI	map-hifi	generalisation	v5_0q_stvar_grch38	measured_in_qc	https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/HG002_NA24385_son/PacBio_CCS_15kb_20kb_chemistry2/GRCh38/HG002.SequelII.merged_15kb_20kb.pbmm2.GRCh38.haplotag.10x.bam	Same truth, different error profile. Evaluated without retraining.
+HG005_ONT	ONT	map-ont	unlabelled	none	measured_in_qc	https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/ChineseTrio/HG005_NA24631_son/UCSC_Ultralong_OxfordNanopore_Promethion/HG005_GRCh38_ONT-UL_UCSC_20200109.phased.bam	No SV truth released. Candidate generation and robustness only; reported as unlabelled.
