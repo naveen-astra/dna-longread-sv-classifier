@@ -1,0 +1,6 @@
+# The pipeline runs under WSL/Linux; CRLF breaks every shell rule and script.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.pkl binary
+*.parquet binary

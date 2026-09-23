@@ -1,0 +1,67 @@
+# Data and outputs are reconstructible from config/ + code. Never commit them.
+resources/
+results/
+.snakemake/
+
+# Local micromamba/conda environment state (scripts/setup_wsl.sh recreates it)
+micromamba/
+miniconda3/
+.conda/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Large bioinformatics artefacts, wherever they land
+*.fastq
+*.fastq.gz
+*.fq.gz
+*.fa
+*.fna
+*.fasta
+*.mmi
+*.bam
+*.bai
+*.cram
+*.crai
+*.sam
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+*.parquet
+*.pkl
+
+# Keep tiny test fixtures despite the patterns above
+!tests/data/**
+
+# Local secrets and machine-specific overrides -- never commit credentials or a
+# local config override that would shadow the tracked one for other contributors.
+.env
+.env.*
+config/config.local.yaml
+config/*.local.yaml
+
+# Editors and IDEs (local preference, not part of the project)
+.vscode/
+.idea/
+*.swp
+*.swo
+.metals/
+.kilo/
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
