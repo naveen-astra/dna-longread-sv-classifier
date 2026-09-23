@@ -1,0 +1,14 @@
+name: svml-align
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - minimap2=2.28
+  - samtools=1.20
+  - bedtools=2.31.*
+  - nanoplot=1.42.*
+  # NanoPlot 1.42 imports kaleido.scopes, removed in kaleido 1.x.
+  - python-kaleido=0.2.*
+  - curl
+  - gzip

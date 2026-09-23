@@ -1,0 +1,19 @@
+name: svml-ml
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11
+  - scikit-learn=1.5.*
+  - xgboost=2.1.*
+  - shap=0.46.*
+  - pandas=2.2.*
+  - numpy=1.26.*
+  - scipy
+  - pyarrow
+  - pysam=0.22.*
+  - matplotlib=3.9.*
+  - seaborn=0.13.*
+  - jinja2
+  - weasyprint
+  - pyyaml

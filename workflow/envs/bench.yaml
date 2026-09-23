@@ -1,0 +1,17 @@
+name: svml-bench
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.11
+  # Same tool for label creation and for evaluation (finding H5), so the labeller and
+  # the evaluator cannot disagree about what counts as a match.
+  - truvari=4.*
+  - bcftools=1.20
+  - htslib=1.20
+  - bedtools=2.31.*
+  - pysam=0.22.*
+  - pandas=2.2.*
+  - pyarrow
+  - pyyaml
