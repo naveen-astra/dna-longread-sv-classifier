@@ -1,0 +1,205 @@
+# AI-Based Structural Variant Detection Using Long-Read Sequencing Data
+# Run configuration. No path or parameter is hardcoded in code (spec section 21).
+#
+# Phase 1 skeleton. Values marked TODO are decided in the phase noted.
+
+project:
+  name: svml
+  # Run the pipeline from inside WSL. /mnt/d paths are slow for I/O-heavy rules (M4).
+  workdir: "~/svml-work"
+  seed: 42
+
+reference:
+  build: GRCh38
+  # no-alt analysis set: ALT contigs fragment long-read alignments and create
+  # spurious SV signatures (M1).
+  manifest: config/references.yaml
+
+samples:
+  manifest: config/samples.tsv
+
+# Two-tier region strategy (M2). Tier 1 is a pilot; Tier 2 is the full run.
+regions:
+  tier: 1
+  # Tier 1 needs a window on a train, a val AND a test chromosome: the split is grouped
+  # by chromosome, so a single-chromosome pilot has empty splits and cannot train.
+  # Windows were chosen from the truth set itself (SV count and confident-region
+  # coverage per 5 Mb) to stay within a ~4 GB download. They are SV-rich sub-telomeric
+  # regions, so pilot metrics are NOT representative of the genome as a whole.
+  # A window's split is decided by its chromosome, via regions.tier2 below.
+  tier1:
+    labelled:                         # HG002 ONT: train + val + test windows
+      - "chr16:1-15000000"            # train  ~334 truth SVs, ~97% confident
+      - "chr16:85000001-90000000"     # train  ~299 truth SVs, ~98% confident
+      - "chr19:1-10000000"            # val    ~391 truth SVs, ~96% confident
+      - "chr22:40000001-50000000"     # test   ~300 truth SVs, ~100% confident
+    generalisation:                   # HG002 HiFi: held-out test window only
+      - "chr22:40000001-50000000"
+    unlabelled:                       # HG005 ONT: O1 demonstration only
+      - "chr22:45000001-50000000"
+  # Candidates within this distance of a window edge are dropped: reads are sliced by
+  # overlap, so coverage tapers across the boundary and depth features there are biased.
+  edge_margin: 20000
+  tier2:
+    train: ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8",
+            "chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16"]
+    val:   ["chr17","chr18","chr19"]
+    test:  ["chr20","chr21","chr22","chrX"]
+
+qc:
+  tool: nanoplot
+  # Filtering rules must be documented, never applied silently (spec section 9 stage 2).
+  min_read_length: 1000
+  min_mean_quality: 7
+  # If a rule would discard >5% of reads, stop and record why before proceeding.
+  max_discard_fraction: 0.05
+
+align:
+  tool: minimap2
+  preset:
+    ONT: "map-ont"
+    HIFI: "map-hifi"
+  threads: 8
+  # Multi-part index + --split-prefix: minimap2's documented low-memory mode. A single-
+  # part GRCh38 index can exceed the ~7 GB WSL2 gives by default; split-prefix merges the
+  # per-part hits so primary/supplementary assignment stays correct.
+  index_batch: "2G"
+  # -Y: soft-clip supplementary (needed for clip features B8/B9).
+  # No --MD: minimap2 refuses --MD combined with --split-prefix ("--cs or --MD doesn't
+  # work with --split-prefix"), and --split-prefix is required for the low-memory
+  # multi-part index (finding D8). Not a feature loss: mean_nm_rate (io/bam.py) reads
+  # the NM tag, which minimap2 populates regardless of --MD; only the separate MD
+  # string tag (unused anywhere in this codebase) needs the flag.
+  extra: "-Y"
+  min_mapq_keep: 0          # keep MAPQ0 reads; frac_mapq0 (B6) is a feature
+
+sv_calling:
+  min_sv_length: 50
+  sniffles:
+    minsupport: 2           # permissive: ML filters downstream, not the caller
+    extra: "--allow-overwrite"
+  cutesv:
+    # cuteSV recommends different thresholds per platform; set in phase 6 after
+    # inspecting real output (spec section 9 stage 4).
+    ONT:  "--max_cluster_bias_INS 100 --diff_ratio_merging_INS 0.3 --max_cluster_bias_DEL 100 --diff_ratio_merging_DEL 0.3"
+    HIFI: "--max_cluster_bias_INS 1000 --diff_ratio_merging_INS 0.9 --max_cluster_bias_DEL 1000 --diff_ratio_merging_DEL 0.5"
+    min_support: 2
+
+merge:
+  # Standard tool, not a bespoke matcher (H5). truvari_collapse, not survivor: SURVIVOR
+  # emits symbolic alleles (<DEL>), which truvari silently filters whenever pctseq > 0,
+  # so a SURVIVOR-merged set would yield zero labels. Verified in truvari 4.3.1 source.
+  tool: truvari_collapse      # truvari_collapse | survivor
+  max_distance: 500           # bp between breakpoints to merge
+  min_callers: 1              # keep singletons; n_callers becomes feature C3
+  require_same_type: true
+  require_same_strand: false
+  min_sv_length: 50
+
+features:
+  # Window parameters. Tune on validation chromosomes only.
+  w_bp: 200                   # breakpoint window, bp
+  w_flank: 1000               # flank window for depth ratio, bp
+  min_clip_length: 50         # bp, threshold for B8/B9
+  max_reads_per_locus: 1000   # cap for runtime; log when hit
+  groups:
+    B: true                   # BAM-derived
+    A: true                   # annotation-derived
+    C: true                   # caller-reported
+    V: true                   # caller-declared type/length
+
+labels:
+  # Same truvari parameters used for labelling AND benchmarking, so the labeller and
+  # the evaluator cannot disagree about what a match is (H5).
+  truth: v5_0q_stvar_grch38
+  require_inside_confident_regions: true   # H4: outside => is_true = NA, not 0
+  truvari: &truvari_params
+    refdist: 500
+    # pctseq is 0, not truvari's 0.7 default. Verified directly against truvari 4.3.1:
+    # `truvari bench` prints "Unresolved SVs (e.g. ALT=<DEL>) are filtered when
+    # --pctseq != 0" and does exactly that -- with pctseq>0 every symbolic-ALT call
+    # (which is how Sniffles2/cuteSV represent DEL/DUP/INV) is silently dropped from
+    # comparison before matching, producing near-zero labels. Matching therefore relies
+    # on position, size and type only, not sequence identity. This is the standard
+    # setting for comparing symbolic SV callsets and is not a weakening of the match.
+    pctseq: 0.0
+    pctsize: 0.7
+    pctovl: 0.0
+    # refine is off. The v5.0q README recommends it, but refine re-evaluates regions into
+    # a separate phab output rather than updating bench's tp/fp calls, so it cannot feed
+    # candidate-level labels without a second matching pass; it also needs mafft. Plain
+    # bench with sequence similarity is used for labels AND metrics, identically.
+    refine: false
+    # passonly off: non-PASS caller calls are still candidates the model must judge.
+    # Requiring PASS would silently drop them from labelling and bias the negatives.
+    passonly: false
+    sizemin: 50
+
+ml:
+  split:
+    strategy: chromosome_grouped   # sample-level split impossible: HG002-only truth (H3)
+    group_column: chrom
+  stages:
+    A:                        # PRIMARY, benchmarked
+      target: is_true
+      type: binary
+      enabled: true
+    B:                        # SECONDARY, benchmarked
+      target: true_sv_type
+      classes: ["DEL", "INS"]
+      exclude_features: ["svtype_called"]   # leakage control
+      abs_svlen: true
+      enabled: true
+    C:                        # EXPLORATORY, pseudo-labels, NOT benchmarked
+      target: pseudo_sv_type
+      classes: ["INS", "DEL", "DUP", "INV", "TRA"]
+      label_source: caller_consensus
+      benchmarked: false
+      enabled: true
+  ablations:
+    - name: "B+A"             # independent evidence only
+      groups: ["B", "A"]
+    - name: "B+A+C+V"         # all features
+      groups: ["B", "A", "C", "V"]
+  models:
+    random_forest:
+      n_estimators: 500
+      class_weight: balanced
+      random_state: 42
+    xgboost:
+      n_estimators: 500
+      max_depth: 6
+      learning_rate: 0.1
+      random_state: 42
+  imbalance:
+    strategy: class_weight    # class_weight | threshold | resample (last resort)
+  calibration:
+    method: isotonic          # fit on validation split only
+  hyperparameter_search:
+    enabled: true
+    n_iter: 50
+    scoring: f1_macro
+    # Search on validation only. Test split is touched once, at the end.
+
+evaluation:
+  truvari: *truvari_params
+  baselines: ["sniffles2", "cutesv", "union", "intersection", "rf", "xgboost"]
+  headline_reference: intersection    # H2: the baseline ML must beat
+  bootstrap:
+    n_resamples: 1000
+    ci: 0.95
+  strata:
+    tr_overlap_frac: [0.0, 0.1, 0.5, 1.01]
+    sv_size: [50, 100, 1000, 10000, 100000000]
+    segdup: binary
+    mapq0: binary
+
+explain:
+  shap:
+    max_samples: 2000
+    plots: ["summary", "bar", "beeswarm", "dependence"]
+
+report:
+  formats: ["html", "pdf"]
+  # Nothing illustrative ever enters a results table (spec section 28).
+  placeholder_token: "TBD"
