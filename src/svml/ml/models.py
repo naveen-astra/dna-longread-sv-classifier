@@ -101,18 +101,3 @@ def scale_pos_weight(y: np.ndarray) -> float:
         log.warning("no positive examples present; scale_pos_weight defaults to 1.0")
         return 1.0
     return max(negatives / positives, 1e-6)
-
-
-def trivial_baselines(y_true: np.ndarray, n_callers: np.ndarray | None = None) -> dict[str, np.ndarray]:
-    """Predictions a model must beat before any tuning is worthwhile (spec section 14).
-
-    `majority` is the degenerate baseline. `both_callers` is the intersection rule --
-    the real heuristic competitor (finding H2).
-    """
-    values, counts = np.unique(y_true[~np.isnan(y_true)], return_counts=True)
-    majority_class = values[int(np.argmax(counts))] if values.size else 0.0
-
-    out = {"majority": np.full(y_true.shape, majority_class, dtype=float)}
-    if n_callers is not None:
-        out["both_callers"] = (np.asarray(n_callers) >= 2).astype(float)
-    return out

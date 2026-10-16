@@ -43,7 +43,6 @@ dependencies:
   - bcftools=1.20
   - bedtools=2.31.*
   - survivor=1.0.7
-  - pybedtools
 
   # --- benchmarking: same tool for labelling and evaluation (finding H5) ---
   - truvari=4.*

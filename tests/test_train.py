@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from svml.ml.dataset import Encoder, abs_svlen_adjustment, build_matrix
-from svml.ml.models import accepts_nan, scale_pos_weight, trivial_baselines
+from svml.ml.models import accepts_nan, scale_pos_weight
 from svml.ml.splits import assign_splits, split_frames
 from svml.ml.train import load_model, predict, save_model, train_stage
 
@@ -80,17 +80,6 @@ def test_model_nan_handling_flags():
 def test_scale_pos_weight_balances_classes():
     y = np.array([1] * 10 + [0] * 90)
     assert scale_pos_weight(y) == pytest.approx(9.0)
-
-
-def test_trivial_baselines_include_the_caller_agreement_rule():
-    """Spec section 14: establish a baseline before tuning anything."""
-    y = np.array([1.0, 1.0, 0.0, 0.0, 0.0])
-    n_callers = np.array([2, 1, 2, 1, 1])
-
-    baselines = trivial_baselines(y, n_callers)
-    assert set(baselines) == {"majority", "both_callers"}
-    assert (baselines["majority"] == 0.0).all()
-    assert (baselines["both_callers"] == np.array([1.0, 0.0, 1.0, 0.0, 0.0])).all()
 
 
 # --- training ---------------------------------------------------------------
