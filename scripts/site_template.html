@@ -3,206 +3,219 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SV Triage Bench</title>
+<title>SV Classifier Demo</title>
 <meta name="description" content="Interactive demo of a long-read structural-variant classifier benchmarked on GIAB HG002.">
 <style>
 :root{
-  --bg:#F2F4F3; --surface:#FFFFFF; --sunk:#E8EDEB; --ink:#15201E; --muted:#56655F; --line:#D3DCD8;
-  --accent:#1D6A86; --accent-soft:#D6E7EE; --second:#9A6410;
-  --real:#2F7A4E; --real-soft:#DCEEE2; --art:#B2472F; --art-soft:#F5DFD8;
-  --display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
-  --body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --mono:ui-monospace,"Cascadia Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --bg:#F6F7F9; --card:#FFFFFF; --text:#111827; --muted:#6B7280; --border:#E5E7EB; --subtle:#F3F4F6;
+  --accent:#2563EB; --accent-bg:#EFF6FF; --second:#D97706;
+  --ok:#15803D; --ok-bg:#ECFDF3; --bad:#B91C1C; --bad-bg:#FEF2F2;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --bg:#0F1513; --surface:#161F1C; --sunk:#1C2723; --ink:#E3EAE7; --muted:#93A39D; --line:#2B3833;
-    --accent:#5CB0CC; --accent-soft:#1B3540; --second:#D9A441;
-    --real:#62BE88; --real-soft:#1A3326; --art:#E3806A; --art-soft:#3B211B;
+    --bg:#0B0F14; --card:#121821; --text:#E5E7EB; --muted:#9CA3AF; --border:#243040; --subtle:#18202B;
+    --accent:#60A5FA; --accent-bg:#13233A; --second:#F59E0B;
+    --ok:#4ADE80; --ok-bg:#0F2A1B; --bad:#F87171; --bad-bg:#2D1414;
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --bg:#0F1513; --surface:#161F1C; --sunk:#1C2723; --ink:#E3EAE7; --muted:#93A39D; --line:#2B3833;
-  --accent:#5CB0CC; --accent-soft:#1B3540; --second:#D9A441;
-  --real:#62BE88; --real-soft:#1A3326; --art:#E3806A; --art-soft:#3B211B;
+  --bg:#0B0F14; --card:#121821; --text:#E5E7EB; --muted:#9CA3AF; --border:#243040; --subtle:#18202B;
+  --accent:#60A5FA; --accent-bg:#13233A; --second:#F59E0B;
+  --ok:#4ADE80; --ok-bg:#0F2A1B; --bad:#F87171; --bad-bg:#2D1414;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);padding-inline:20px;padding-block:28px 48px}
-.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
-h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
-h1{font-size:clamp(2rem,4.4vw,3rem);font-weight:800;line-height:1.02}
-h2{font-size:1.45rem;font-weight:700}
-h3{font-size:1rem;font-weight:700;font-stretch:90%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--font)}
+h1,h2,h3{margin:0;line-height:1.25;text-wrap:balance}
 p{margin:0}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.eyebrow{font:500 .72rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
-.lede{max-width:66ch;color:var(--muted);font-size:1rem}
-header{display:flex;flex-direction:column;gap:14px}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
-.stat{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
-.stat b{font:700 1.6rem/1.1 var(--display);font-variant-numeric:tabular-nums}
-.stat span{font-size:.82rem;color:var(--muted);line-height:1.35}
-section{display:flex;flex-direction:column;gap:16px}
-.sec-head{display:flex;flex-direction:column;gap:6px}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-.explorer{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:18px;align-items:start}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px}
-.list-panel{display:flex;flex-direction:column;min-height:0}
-.filters{display:flex;flex-direction:column;gap:8px;padding:12px;border-bottom:1px solid var(--line)}
-.seg{display:flex;flex-wrap:wrap;gap:4px}
-.seg button{font:500 .78rem/1 var(--body);padding:6px 9px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.seg button:focus-visible,.row:focus-visible,.btn:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.count{font-size:.78rem;color:var(--muted)}
-.rows{max-height:640px;overflow-y:auto}
-.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;text-align:left;padding:9px 12px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;font:inherit}
-.row:hover{background:var(--sunk)}
-.row[aria-current="true"]{background:var(--accent-soft)}
-.row .loc{font:500 .82rem/1.3 var(--mono)}
-.row .meta{font-size:.76rem;color:var(--muted);grid-column:1}
-.row .right{grid-row:1/3;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px;justify-content:center}
-.minibar{position:relative;width:74px;height:6px;background:var(--sunk);border-radius:3px}
-.minibar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--muted)}
-.minibar i.k{background:var(--accent)}
-.minibar em{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--ink)}
-.flag{font:600 .66rem/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:3px 5px;border-radius:3px}
-.flag.ok{color:var(--real);background:var(--real-soft)}
-.flag.bad{color:var(--art);background:var(--art-soft)}
+.topbar{background:var(--card);border-bottom:1px solid var(--border)}
+.topbar-inner{max-width:1200px;margin:0 auto;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{font-weight:600}
+.topbar a{color:var(--muted);text-decoration:none;font-size:13px}
+.topbar a:hover{color:var(--text)}
 
-.detail{padding:20px;display:flex;flex-direction:column;gap:22px;min-width:0}
-.locus-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 20px;align-items:flex-end}
-.locus-head .coord{font:500 1.15rem/1.2 var(--mono)}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{font:600 .74rem/1 var(--body);padding:6px 9px;border-radius:4px;border:1px solid var(--line)}
-.chip.keep{background:var(--accent);border-color:var(--accent);color:var(--surface)}
-.chip.reject{background:transparent;color:var(--ink)}
-.chip.real{color:var(--real);border-color:currentColor}
-.chip.art{color:var(--art);border-color:currentColor}
-.chip.ok{background:var(--real-soft);color:var(--real);border-color:transparent}
-.chip.bad{background:var(--art-soft);color:var(--art);border-color:transparent}
-.meter{display:flex;flex-direction:column;gap:6px}
-.meter-track{position:relative;height:14px;background:var(--sunk);border-radius:3px}
-.meter-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
-.meter-thr{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink)}
-.meter-scale{display:flex;justify-content:space-between;font:400 .7rem/1 var(--mono);color:var(--muted)}
-.meter-read{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:.88rem}
-.meter-read b{font:700 1.25rem/1 var(--display);font-stretch:85%}
+main{max-width:1200px;margin:0 auto;padding:28px 20px 48px;display:flex;flex-direction:column;gap:28px}
+.intro{display:flex;flex-direction:column;gap:6px}
+.intro h1{font-size:26px;font-weight:650}
+.intro p{color:var(--muted);max-width:70ch}
+
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.kpi span{display:block;font-size:12px;color:var(--muted)}
+.kpi b{display:block;font-size:22px;font-weight:650;margin-top:2px}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px}
+.card-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head h2{font-size:15px;font-weight:600}
+section{display:flex;flex-direction:column;gap:12px}
+section > h2{font-size:18px;font-weight:600}
+
+.explore{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:16px;align-items:start}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.controls label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+select{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px}
+.table-wrap{max-height:600px;overflow:auto}
+table{width:100%;border-collapse:collapse}
+.list th{position:sticky;top:0;background:var(--subtle);text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border)}
+.list td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;white-space:nowrap}
+.list tbody tr{cursor:pointer}
+.list tbody tr:hover{background:var(--subtle)}
+.list tbody tr[aria-selected="true"]{background:var(--accent-bg)}
+.list td.r,.list th.r{text-align:right}
+.badge{display:inline-block;font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)}
+.count{font-size:12px;color:var(--muted)}
+
+.detail{padding:20px;display:flex;flex-direction:column;gap:20px;min-width:0}
+.d-head h3{font-size:18px;font-weight:600;font-family:var(--mono)}
+.d-head p{color:var(--muted);margin-top:2px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tile{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.tile span{display:block;font-size:12px;color:var(--muted)}
+.tile b{display:block;font-size:16px;font-weight:600;margin-top:2px}
+.tile b.ok{color:var(--ok)} .tile b.bad{color:var(--bad)}
+.bar{position:relative;height:6px;background:var(--subtle);border-radius:3px;margin-top:8px}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--accent)}
+.bar em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text)}
 .svgbox{overflow-x:auto}
 .svgbox svg{display:block;width:100%;height:auto;min-width:420px}
-.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px}
-.why{display:flex;flex-direction:column;gap:7px}
-.why-row{display:grid;grid-template-columns:minmax(0,1fr) 130px 48px;gap:10px;align-items:center;font-size:.84rem}
-.why-row .lbl{line-height:1.3}
-.why-row .lbl small{display:block;color:var(--muted);font:400 .74rem/1.3 var(--mono)}
-.why-row .num{font:500 .74rem/1 var(--mono);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
-.dbar{position:relative;height:16px}
-.dbar::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--line)}
-.dbar i{position:absolute;top:2px;bottom:2px;border-radius:2px}
-.why-note{font-size:.8rem;color:var(--muted);line-height:1.45;border-top:1px solid var(--line);padding-top:10px}
-.ev{width:100%;border-collapse:collapse;font-size:.84rem}
-.ev th{text-align:left;font:500 .68rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:12px 0 6px}
-.ev td{padding:5px 0;border-bottom:1px solid var(--line)}
-.ev td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+.cols h4{margin:0 0 10px;font-size:13px;font-weight:600}
+.factor{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px;align-items:center;padding:5px 0;font-size:13px}
+.factor small{color:var(--muted);margin-left:4px}
+.fbar{position:relative;height:10px}
+.fbar::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--border)}
+.fbar i{position:absolute;top:1px;bottom:1px;border-radius:2px}
+.legend-row{display:flex;justify-content:flex-end;gap:14px;font-size:12px;color:var(--muted);margin-bottom:4px}
+.legend-row span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
+.legend-row .up::before{background:var(--ok)} .legend-row .down::before{background:var(--bad)}
+.kv td{padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.kv td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 
-.thr-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:18px;align-items:start}
-.thr-controls{padding:20px;display:flex;flex-direction:column;gap:18px}
-.slider-row{display:flex;flex-direction:column;gap:8px}
-.slider-row label{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.slider-row label b{font:700 1.6rem/1 var(--display);font-variant-numeric:tabular-nums}
-input[type=range]{width:100%;accent-color:var(--accent)}
-.btn{align-self:flex-start;font:500 .8rem/1 var(--body);padding:7px 10px;border-radius:4px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.thr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.thr-body{padding:16px;display:flex;flex-direction:column;gap:18px}
+.slider label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--muted)}
+.slider b{font-size:20px;color:var(--text)}
+input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0 6px}
+.btn{background:transparent;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer}
+.btn:hover{background:var(--subtle)}
 .mets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.met{display:flex;flex-direction:column;gap:2px}
-.met b{font:700 1.35rem/1.1 var(--display);font-variant-numeric:tabular-nums}
-.met span{font-size:.76rem;color:var(--muted)}
-.met small{font:400 .72rem/1.2 var(--mono);color:var(--muted)}
-.cm{display:grid;grid-template-columns:auto 1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden;font-size:.8rem}
-.cm div{background:var(--surface);padding:8px 10px}
-.cm .h{font:500 .68rem/1.2 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--sunk)}
-.cm .v{font:700 1.15rem/1 var(--display);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:3px}
-.cm .v small{font:400 .7rem/1.2 var(--body);color:var(--muted)}
-.missed{font-size:.82rem;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
-.chart{padding:14px 14px 8px}
-.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.78rem;color:var(--muted);padding:4px 6px 8px}
-.legend span{display:inline-flex;align-items:center;gap:6px}
-.legend i{display:inline-block;width:18px;height:3px;border-radius:2px}
+.met span{display:block;font-size:12px;color:var(--muted)}
+.met b{display:block;font-size:20px;font-weight:650}
+.met small{font-size:12px;color:var(--muted)}
+.cm th,.cm td{border:1px solid var(--border);padding:8px 10px;font-size:13px;text-align:center}
+.cm th{background:var(--subtle);font-weight:600;color:var(--muted);font-size:12px}
+.cm td b{font-size:16px}
+.note{font-size:12px;color:var(--muted)}
+.chart{padding:12px 16px 16px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.chart-legend i{display:inline-block;width:16px;height:3px;border-radius:2px}
 
-footer{font-size:.8rem;color:var(--muted);display:flex;flex-direction:column;gap:6px;max-width:80ch;border-top:1px solid var(--line);padding-top:16px}
+footer{max-width:1200px;margin:0 auto;padding:0 20px 32px;font-size:12px;color:var(--muted)}
 
-@media (max-width:900px){
-  .explorer,.thr-grid,.grid2{grid-template-columns:1fr}
-  .rows{max-height:300px}
-  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:960px){
+  .explore,.thr,.cols{grid-template-columns:1fr}
+  .table-wrap{max-height:340px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media (max-width:420px){
-  body{padding-inline:16px}
-  .why-row{grid-template-columns:minmax(0,1fr) 90px 44px}
-}
-@media (prefers-reduced-motion:no-preference){
-  .meter-fill,.minibar i{transition:width .25s ease}
+@media (max-width:480px){
+  main,.topbar-inner,footer{padding-left:16px;padding-right:16px}
+  .tiles{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <span class="eyebrow">Long-read SV detection · Stage A validity model · GIAB HG002</span>
-    <h1>SV Triage Bench</h1>
-    <p class="lede">Sniffles2 and cuteSV propose structural-variant candidates from Oxford Nanopore reads. A calibrated Random Forest scores each one as real or artefact. Every candidate below is from the held-out chr22 test windows, which the model never saw in training or tuning, and is checked against the GIAB v5.0q truth set.</p>
-    <div class="stats" id="stats"></div>
-  </header>
+<header class="topbar">
+  <div class="topbar-inner">
+    <span class="brand">SV Classifier</span>
+    <a href="https://github.com/naveen-astra/dna-longread-sv-classifier">GitHub</a>
+  </div>
+</header>
+
+<main>
+  <div class="intro">
+    <h1>Long-read structural variant classifier</h1>
+    <p>A Random Forest scores each candidate from Sniffles2 and cuteSV as a real SV or a false call. Below are its predictions on 281 held-out candidates from chr22 (GIAB HG002, Oxford Nanopore).</p>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
 
   <section aria-labelledby="h-explore">
-    <div class="sec-head">
-      <h2 id="h-explore">Inspect a candidate</h2>
-      <p class="muted">Pick any of the 281 test candidates to see the locus, the model's decision, what GIAB says, and which evidence moved the score.</p>
-    </div>
-    <div class="explorer">
-      <div class="panel list-panel">
-        <div class="filters">
-          <div class="seg" role="group" aria-label="Filter by outcome" id="f-out"></div>
-          <div class="seg" role="group" aria-label="Filter by type" id="f-type"></div>
-          <div class="seg" role="group" aria-label="Sort" id="f-sort"></div>
+    <h2 id="h-explore">Predictions</h2>
+    <div class="explore">
+      <div class="card">
+        <div class="card-head">
+          <div class="controls">
+            <label for="f-out">Show
+              <select id="f-out">
+                <option value="all">All</option>
+                <option value="ok">Correct</option>
+                <option value="bad">Incorrect</option>
+                <option value="keep">Predicted real</option>
+                <option value="reject">Predicted false</option>
+              </select>
+            </label>
+            <label for="f-type">Type
+              <select id="f-type">
+                <option value="all">All</option>
+                <option value="DEL">Deletion</option>
+                <option value="INS">Insertion</option>
+              </select>
+            </label>
+            <label for="f-sort">Sort
+              <select id="f-sort">
+                <option value="pos">Position</option>
+                <option value="hi">Score, high to low</option>
+                <option value="lo">Score, low to high</option>
+              </select>
+            </label>
+          </div>
           <span class="count" id="count"></span>
         </div>
-        <div class="rows" id="rows" role="list"></div>
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>Position</th><th>Type</th><th class="r">Size</th><th class="r">Score</th><th>Result</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
       </div>
-      <div class="panel detail" id="detail" aria-live="polite"></div>
+      <div class="card detail" id="detail" aria-live="polite"></div>
     </div>
   </section>
 
   <section aria-labelledby="h-thr">
-    <div class="sec-head">
-      <h2 id="h-thr">Move the decision threshold</h2>
-      <p class="muted">The model outputs a probability. The threshold decides which candidates are kept. 0.39 was chosen on the chr19 validation windows; dragging it here shows the precision–recall trade on chr22 and updates the decisions above.</p>
-    </div>
-    <div class="thr-grid">
-      <div class="panel thr-controls">
-        <div class="slider-row">
-          <label for="thr"><span class="eyebrow">Keep if P(real) ≥</span><b id="thr-val" class="mono"></b></label>
+    <h2 id="h-thr">Decision threshold</h2>
+    <div class="thr">
+      <div class="card thr-body">
+        <div class="slider">
+          <label for="thr">Predict real if score ≥ <b id="thr-val" class="num"></b></label>
           <input type="range" id="thr" min="0.05" max="0.95" step="0.01">
-          <button class="btn" id="thr-reset" type="button">Reset to 0.39</button>
+          <button class="btn" id="thr-reset" type="button">Reset</button>
         </div>
         <div class="mets" id="mets"></div>
-        <div class="cm" id="cm"></div>
-        <p class="missed" id="missed"></p>
+        <table class="cm" id="cm"></table>
+        <p class="note" id="note"></p>
       </div>
-      <div class="panel chart">
-        <div class="legend" id="legend"></div>
-        <div class="svgbox"><svg id="pr" viewBox="0 0 600 400" role="img" aria-label="Precision-recall curves for Random Forest and XGBoost with heuristic baseline points"></svg></div>
+      <div class="card chart">
+        <div class="chart-legend" id="legend"></div>
+        <div class="svgbox"><svg id="pr" viewBox="0 0 600 380" role="img" aria-label="Precision-recall curves"></svg></div>
       </div>
     </div>
   </section>
+</main>
 
-
-  <footer>
-    <p>Tier-1 pilot: SV-rich windows on chr16 (train), chr19 (validation) and chr22 (test), so the numbers are not genome-representative. SHAP values explain the forest's raw vote before calibration. "Artefact" means a candidate inside a GIAB confident region with no truth match.</p>
-  </footer>
-</div>
+<footer>Trained on chr16, tuned on chr19, tested on chr22. Truth: GIAB HG002 v5.0q.</footer>
 
 <script>
 const D = /*DATA*/null;
@@ -212,262 +225,211 @@ const state = { out: "all", type: "all", sort: "pos", sel: null };
 
 const LABEL = {
   cutesv_support:"cuteSV supporting reads", sniffles_support:"Sniffles2 supporting reads",
-  caller_qual:"Caller quality score", svlen_disagreement:"Size disagreement between callers",
-  bp_offset_between_callers:"Breakpoint offset between callers", n_callers:"Callers that found it",
-  filter_pass:"Passed caller filter", support_ratio:"Share of local reads supporting it",
-  mean_mapq:"Mean mapping quality", dp_flank_ratio:"Depth vs flanking depth",
-  n_split_reads:"Split reads", tr_overlap_frac:"Tandem-repeat overlap",
-  segdup_overlap:"Segmental-duplication overlap", gc_content:"GC content",
-  mean_nm_rate:"Read mismatch rate", homopolymer_len_at_bp:"Homopolymer at breakpoint",
-  mean_read_len_local:"Mean local read length", n_supplementary:"Supplementary alignments",
+  caller_qual:"Caller quality", svlen_disagreement:"Size difference between callers",
+  bp_offset_between_callers:"Breakpoint distance between callers", n_callers:"Callers",
+  filter_pass:"Passed caller filter", support_ratio:"Supporting read fraction",
+  mean_mapq:"Mean mapping quality", dp_flank_ratio:"Depth ratio vs flanks",
+  n_split_reads:"Split reads", tr_overlap_frac:"Tandem repeat overlap",
+  segdup_overlap:"Segmental duplication overlap", gc_content:"GC content",
+  mean_nm_rate:"Read mismatch rate", homopolymer_len_at_bp:"Homopolymer length",
+  mean_read_len_local:"Mean read length", n_supplementary:"Supplementary alignments",
   bp_microhomology_len:"Breakpoint microhomology", dist_to_nearest_gap:"Distance to assembly gap",
-  clip_frac:"Soft-clipped read share", span_len:"Reference span", n_spanning_reads:"Spanning reads"
+  clip_frac:"Clipped read fraction", span_len:"Span", n_spanning_reads:"Spanning reads",
+  strand_balance:"Strand imbalance", dp_local:"Local depth", dp_mad_local:"Depth variability",
+  median_mapq:"Median mapping quality", frac_mapq0:"MAPQ-0 fraction", n_clipped_reads:"Clipped reads",
+  rmsk_overlap_frac:"RepeatMasker overlap", log10_svlen:"SV length (log10)"
 };
-const ONE_CALLER = new Set(["svlen_disagreement","bp_offset_between_callers"]);
-const CALLER_SUP = new Set(["sniffles_support","cutesv_support"]);
+const ISNA = {
+  sniffles_support:["Not called by Sniffles2","Called by Sniffles2"],
+  cutesv_support:["Not called by cuteSV","Called by cuteSV"],
+  svlen_disagreement:["Found by one caller only","Found by both callers"],
+  bp_offset_between_callers:["Found by one caller only","Found by both callers"]
+};
+const TWO = new Set(["svlen_disagreement","bp_offset_between_callers"]);
+const SUP = new Set(["sniffles_support","cutesv_support"]);
 const fmtInt = n => n.toLocaleString("en-US");
-const pct = v => (v*100).toFixed(v < 0.1 && v > 0 ? 1 : 0) + "%";
+const pct = v => (v*100).toFixed(0) + "%";
+const bp = v => { const a = Math.abs(v); return a >= 1e6 ? (a/1e6).toFixed(2)+" Mb" : a >= 1e3 ? (a/1e3).toFixed(1)+" kb" : fmtInt(Math.round(a))+" bp"; };
 
-function fmtBp(v){ const a=Math.abs(v); return a>=1e6?(a/1e6).toFixed(2)+" Mb":a>=1e3?(a/1e3).toFixed(1)+" kb":fmtInt(Math.round(a))+" bp"; }
 function fmtVal(name, v){
-  if (v === null || v === undefined) {
-    if (CALLER_SUP.has(name)) return "not called";
-    if (ONE_CALLER.has(name)) return "one caller only";
-    return "—";
+  if (v === null || v === undefined || (v === -1 && (SUP.has(name) || TWO.has(name)))) {
+    return SUP.has(name) ? "Not called" : TWO.has(name) ? "—" : "—";
   }
-  if (v === -1 && CALLER_SUP.has(name)) return "not called";
-  if (v === -1 && ONE_CALLER.has(name)) return "one caller only";
-  if (name === "filter_pass") return v ? "yes" : "no";
-  if (name === "n_callers") return v === 2 ? "both" : "one";
-  if (/overlap|gc_content|support_ratio|clip_frac/.test(name)) return pct(v);
+  if (name === "filter_pass") return v ? "Yes" : "No";
+  if (name === "n_callers") return v === 2 ? "Both" : "One";
+  if (/overlap|gc_content|support_ratio|clip_frac|frac_mapq0/.test(name)) return pct(v);
   if (name === "mean_nm_rate") return (v*100).toFixed(1) + "%";
-  if (name === "mean_mapq") return v.toFixed(1);
-  if (name === "dp_flank_ratio") return v.toFixed(2) + "×";
-  if (/offset|disagreement|dist_to|span_len|homopolymer|microhomology|read_len/.test(name)) return fmtBp(v);
-  if (name === "caller_qual") return v.toFixed(1);
+  if (name === "dp_flank_ratio") return v.toFixed(2);
+  if (/mapq|caller_qual/.test(name)) return v.toFixed(1);
+  if (/offset|disagreement|dist_to|span_len|homopolymer|microhomology|read_len/.test(name)) return bp(v);
   return Number.isInteger(v) ? fmtInt(v) : v.toFixed(2);
 }
-function whyLabel(name, v){
+function factorLabel(name, v){
   if (name.endsWith("__isna")) {
     const b = name.slice(0, -6);
-    if (b === "sniffles_support") return [v ? "Sniffles2 did not call it" : "Sniffles2 called it", "missing-value flag"];
-    if (b === "cutesv_support") return [v ? "cuteSV did not call it" : "cuteSV called it", "missing-value flag"];
-    if (b === "svlen_disagreement") return [v ? "No size comparison (one caller)" : "Sizes compared across callers", "missing-value flag"];
-    if (b === "bp_offset_between_callers") return [v ? "No breakpoint comparison (one caller)" : "Breakpoints compared across callers", "missing-value flag"];
-    return [(LABEL[b] || b) + (v ? " missing" : " present"), "missing-value flag"];
+    if (ISNA[b]) return [v ? ISNA[b][0] : ISNA[b][1], ""];
+    return [(LABEL[b] || b) + (v ? " missing" : ""), ""];
   }
-  if (name.includes("__")) { const [b, c] = name.split("__"); return [`${b === "svtype_called" ? "Caller type" : b} = ${c}`, v ? "yes" : "no"]; }
+  if (name.includes("__")) { const [b, c] = name.split("__"); return [`${LABEL[b] || b}: ${c}`, ""]; }
   return [LABEL[name] || name, fmtVal(name, v)];
 }
 
 const keep = r => r.p >= thr;
 const correct = r => keep(r) === (r.truth === 1);
-
-function renderStats(){
-  const acc = D.rows.filter(correct).length / D.rows.length;
-  const gain = (D.matched_gain*100).toFixed(2);
-  const items = [
-    [D.rows.length, "held-out chr22 candidates, scored live on this page"],
-    [(acc*100).toFixed(1) + "%", `classified correctly at threshold ${thr.toFixed(2)}`],
-    ["+" + gain + " pp", "precision over the both-callers-agree baseline, at equal recall"],
-    [D.ceiling.toFixed(3), `recall ceiling: ${D.missed} of ${D.truth_total} real SVs were proposed by neither caller`]
-  ];
-  document.getElementById("stats").innerHTML = items.map(([b,s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
-}
-
-function seg(id, opts, key){
-  const el = document.getElementById(id);
-  el.innerHTML = opts.map(([v,l]) => `<button type="button" data-v="${v}" aria-pressed="${state[key]===v}">${l}</button>`).join("");
-  el.onclick = e => { const b = e.target.closest("button"); if (!b) return; state[key] = b.dataset.v; seg(id, opts, key); renderList(); };
-}
-function filtered(){
-  let rs = D.rows.filter(r =>
-    (state.type === "all" || r.type === state.type) &&
-    (state.out === "all" || (state.out === "keep" && keep(r)) || (state.out === "reject" && !keep(r)) || (state.out === "wrong" && !correct(r))));
-  return rs.slice().sort(state.sort === "pos" ? (a,b) => a.pos - b.pos : state.sort === "hi" ? (a,b) => b.p - a.p : (a,b) => a.p - b.p);
-}
-function renderList(){
-  const rs = filtered();
-  document.getElementById("count").textContent = `${rs.length} of ${D.rows.length} candidates`;
-  const box = document.getElementById("rows");
-  box.innerHTML = rs.map(r => {
-    const k = keep(r), ok = correct(r);
-    return `<button class="row" role="listitem" data-id="${r.id}" aria-current="${state.sel === r.id}">
-      <span class="loc">${CH}:${fmtInt(r.pos)}</span>
-      <span class="meta">${r.type} · ${fmtBp(r.len)} · ${k ? "kept" : "rejected"}</span>
-      <span class="right">
-        <span class="minibar" aria-hidden="true"><i class="${k ? "k" : ""}" style="width:${(r.p*100).toFixed(1)}%"></i><em style="left:${(thr*100).toFixed(1)}%"></em></span>
-        <span class="flag ${ok ? "ok" : "bad"}">${ok ? "correct" : "wrong"}</span>
-      </span></button>`;
-  }).join("") || `<p class="muted" style="padding:14px">No candidates match these filters.</p>`;
-  box.onclick = e => { const b = e.target.closest(".row"); if (b) select(b.dataset.id); };
-}
-function select(id){
-  state.sel = id;
-  document.querySelectorAll(".row").forEach(b => b.setAttribute("aria-current", b.dataset.id === id));
-  renderDetail();
-}
-
-function locusSvg(r){
-  const W = 640, H = 150, L = 16, R = W - 16;
-  const isIns = r.type === "INS";
-  const span = isIns ? 0 : Math.max(1, (r.end || r.pos + Math.abs(r.len)) - r.pos);
-  const pad = Math.max(isIns ? 300 : span * 0.6, 150);
-  const a = r.pos - pad, b = (isIns ? r.pos : r.pos + span) + pad;
-  const x = g => L + (g - a) / (b - a) * (R - L);
-  const tickStep = (() => { const raw = (b - a) / 4; const p = Math.pow(10, Math.floor(Math.log10(raw))); return [1,2,5,10].map(m => m*p).find(s => s >= raw); })();
-  let ticks = ""; for (let t = Math.ceil(a / tickStep) * tickStep; t <= b; t += tickStep)
-    ticks += `<line x1="${x(t)}" x2="${x(t)}" y1="30" y2="35" stroke="var(--muted)"/><text x="${x(t)}" y="24" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--muted)">${fmtInt(t)}</text>`;
-  const col = r.truth === 1 ? "var(--real)" : "var(--art)";
-  let sv;
-  if (isIns) {
-    const cx = x(r.pos);
-    sv = `<polygon points="${cx-8},48 ${cx+8},48 ${cx},62" fill="${col}"/><text x="${cx}" y="78" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink)">+${fmtBp(r.len)} inserted</text>`;
-  } else {
-    const x1 = x(r.pos), x2 = x(r.pos + span);
-    sv = `<rect x="${x1}" y="47" width="${Math.max(2, x2-x1)}" height="16" fill="${col}" opacity=".22"/><line x1="${x1}" x2="${x2}" y1="55" y2="55" stroke="${col}" stroke-width="2" stroke-dasharray="4 3"/><line x1="${x1}" x2="${x1}" y1="44" y2="66" stroke="${col}" stroke-width="2"/><line x1="${x2}" x2="${x2}" y1="44" y2="66" stroke="${col}" stroke-width="2"/><text x="${(x1+x2)/2}" y="80" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--ink)">${fmtBp(span)} deleted</text>`;
-  }
-  const refLine = isIns
-    ? `<line x1="${L}" x2="${R}" y1="55" y2="55" stroke="var(--ink)" stroke-width="3"/>`
-    : `<line x1="${L}" x2="${x(r.pos)}" y1="55" y2="55" stroke="var(--ink)" stroke-width="3"/><line x1="${x(r.pos+span)}" x2="${R}" y1="55" y2="55" stroke="var(--ink)" stroke-width="3"/>`;
-  const track = (y, name, sup) => {
-    const called = sup !== null && sup !== undefined;
-    const x1 = x(r.pos), x2 = isIns ? x(r.pos) + 3 : x(r.pos + span);
-    const mark = called ? `<rect x="${Math.min(x1,x2)-(isIns?1.5:0)}" y="${y-5}" width="${Math.max(3, Math.abs(x2-x1))}" height="10" rx="2" fill="var(--accent)"/>` : "";
-    return `<text x="${L}" y="${y+4}" font-size="11" fill="var(--muted)" font-family="var(--body)">${name}</text>
-      <line x1="${L+78}" x2="${R}" y1="${y}" y2="${y}" stroke="var(--line)"/>${mark}
-      <text x="${R}" y="${y+4}" text-anchor="end" font-size="11" font-family="var(--mono)" fill="${called ? "var(--ink)" : "var(--muted)"}">${called ? fmtInt(sup) + " reads" : "not called"}</text>`;
-  };
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Locus view of the candidate on ${CH}">
-    <text x="${L}" y="12" font-size="10" font-family="var(--mono)" fill="var(--muted)" letter-spacing=".08em">GRCh38 ${CH}</text>
-    ${ticks}${refLine}${sv}
-    ${track(108, "Sniffles2", r.f.sniffles_support)}
-    ${track(132, "cuteSV", r.f.cutesv_support)}
-  </svg>`;
-}
-function renderDetail(){
-  const r = D.rows.find(x => x.id === state.sel);
-  const el = document.getElementById("detail");
-  if (!r) { el.innerHTML = `<p class="muted">Select a candidate.</p>`; return; }
-  const k = keep(r), ok = correct(r);
-  const end = r.type === "INS" ? "" : "–" + fmtInt(r.end || r.pos + Math.abs(r.len));
-  const maxAbs = 0.1;
-  const sumTop = r.why.reduce((s, w) => s + w[1], 0);
-  const rest = r.pf - D.base - sumTop;
-  const whyRows = r.why.map(([n, v, val]) => {
-    const [lbl, vt] = whyLabel(n, val);
-    const w = Math.min(Math.abs(v) / maxAbs, 1) * 50;
-    const pos = v >= 0;
-    return `<div class="why-row"><div class="lbl">${lbl}<small>${vt}</small></div>
-      <div class="dbar" aria-label="${pos ? "toward real" : "toward artefact"} ${v.toFixed(3)}">
-        <i style="${pos ? "left:50%" : "right:50%"};width:${w}%;background:${pos ? "var(--real)" : "var(--art)"}"></i>
-      </div><span class="num">${pos ? "+" : "−"}${Math.abs(v).toFixed(3)}</span></div>`;
-  }).join("");
-  const G = [
-    ["Caller evidence", ["n_callers","sniffles_support","cutesv_support","caller_qual","filter_pass","svlen_disagreement","bp_offset_between_callers"]],
-    ["Read evidence (from the BAM)", ["support_ratio","mean_mapq","dp_flank_ratio","n_split_reads"]],
-    ["Genomic context", ["tr_overlap_frac","segdup_overlap","gc_content"]]
-  ];
-  const ev = G.map(([h, ks]) => `<tr><th colspan="2">${h}</th></tr>` + ks.filter(k2 => k2 in r.f).map(k2 => `<tr><td>${LABEL[k2]}</td><td>${fmtVal(k2, r.f[k2])}</td></tr>`).join("")).join("");
-  el.innerHTML = `
-    <div class="locus-head">
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <span class="eyebrow">Candidate ${r.id}</span>
-        <span class="coord">${CH}:${fmtInt(r.pos)}${end}</span>
-        <span class="muted" style="font-size:.88rem">${r.type === "DEL" ? "Deletion" : "Insertion"} of ${fmtBp(r.len)}</span>
-      </div>
-      <div class="chips">
-        <span class="chip ${k ? "keep" : "reject"}">Model: ${k ? "KEEP" : "REJECT"}</span>
-        <span class="chip ${r.truth ? "real" : "art"}">GIAB: ${r.truth ? "real SV" : "artefact"}</span>
-        <span class="chip ${ok ? "ok" : "bad"}">${ok ? "Model correct" : "Model wrong"}</span>
-      </div>
-    </div>
-    <div class="meter">
-      <div class="meter-read"><span>P(real) <b class="mono">${r.p.toFixed(2)}</b></span><span class="muted">threshold ${thr.toFixed(2)} · ${k ? "above, so kept" : "below, so rejected"}</span></div>
-      <div class="meter-track"><div class="meter-fill" style="width:${(r.p*100).toFixed(1)}%;background:${k ? "var(--accent)" : "var(--muted)"}"></div><div class="meter-thr" style="left:calc(${(thr*100).toFixed(1)}% - 1px)"></div></div>
-      <div class="meter-scale"><span>0</span><span>0.5</span><span>1</span></div>
-    </div>
-    <div class="svgbox">${locusSvg(r)}</div>
-    <div class="grid2">
-      <div class="why">
-        <h3>Why the model scored it this way</h3>
-        <p class="muted" style="font-size:.8rem;display:flex;justify-content:space-between;padding-right:58px"><span>← toward artefact</span><span>toward real →</span></p>
-        ${whyRows}
-        <p class="why-note">The forest's vote starts at ${D.base.toFixed(2)} and these ${r.why.length} features move it to ${r.pf.toFixed(2)}${Math.abs(rest) >= 0.005 ? ` (the other features add ${rest >= 0 ? "+" : "−"}${Math.abs(rest).toFixed(2)})` : ""}. Calibration turns that vote into P(real) = ${r.p.toFixed(2)}.</p>
-      </div>
-      <div><h3>Evidence at this locus</h3><table class="ev">${ev}</table></div>
-    </div>`;
-}
+const typeName = t => t === "DEL" ? "Deletion" : t === "INS" ? "Insertion" : t;
 
 function metricsAt(t){
   let tp=0, fp=0, fn=0, tn=0;
   for (const r of D.rows) { const k = r.p >= t; if (r.truth) k ? tp++ : fn++; else k ? fp++ : tn++; }
-  const P = tp + fp ? tp / (tp + fp) : 1, Rc = tp / D.truth_total, F = P + Rc ? 2*P*Rc/(P+Rc) : 0;
-  return {tp, fp, fn, tn, P, R: Rc, F};
+  const P = tp + fp ? tp/(tp+fp) : 1, R = tp/D.truth_total, F = P + R ? 2*P*R/(P+R) : 0;
+  return {tp, fp, fn, tn, P, R, F, acc:(tp+tn)/D.rows.length};
 }
-function renderThreshold(){
+
+function renderKpis(m){
+  const items = [["Test candidates", D.rows.length], ["Accuracy", (m.acc*100).toFixed(1)+"%"],
+                 ["Precision", m.P.toFixed(3)], ["Recall", m.R.toFixed(3)]];
+  document.getElementById("kpis").innerHTML = items.map(([l, v]) => `<div class="kpi"><span>${l}</span><b class="num">${v}</b></div>`).join("");
+}
+
+function filtered(){
+  const rs = D.rows.filter(r =>
+    (state.type === "all" || r.type === state.type) &&
+    (state.out === "all" || (state.out === "ok" && correct(r)) || (state.out === "bad" && !correct(r)) ||
+     (state.out === "keep" && keep(r)) || (state.out === "reject" && !keep(r))));
+  return rs.sort(state.sort === "pos" ? (a,b) => a.pos-b.pos : state.sort === "hi" ? (a,b) => b.p-a.p : (a,b) => a.p-b.p);
+}
+function renderList(){
+  const rs = filtered();
+  document.getElementById("count").textContent = `${rs.length} of ${D.rows.length}`;
+  const body = document.getElementById("rows");
+  body.innerHTML = rs.map(r => `<tr data-id="${r.id}" tabindex="0" aria-selected="${state.sel === r.id}">
+      <td class="num">${fmtInt(r.pos)}</td><td>${r.type}</td><td class="r num">${bp(r.len)}</td>
+      <td class="r num">${r.p.toFixed(2)}</td>
+      <td><span class="badge ${correct(r) ? "ok" : "bad"}">${correct(r) ? "Correct" : "Incorrect"}</span></td></tr>`).join("")
+    || `<tr><td colspan="5" class="muted">No candidates match.</td></tr>`;
+}
+function select(id){
+  state.sel = id;
+  document.querySelectorAll("#rows tr").forEach(tr => tr.setAttribute("aria-selected", tr.dataset.id === id));
+  renderDetail();
+}
+
+function locusSvg(r){
+  const W = 640, H = 140, L = 12, R = W - 12;
+  const ins = r.type === "INS";
+  const span = ins ? 0 : Math.max(1, (r.end || r.pos + Math.abs(r.len)) - r.pos);
+  const pad = Math.max(ins ? 300 : span*0.6, 150);
+  const a = r.pos - pad, b = (ins ? r.pos : r.pos + span) + pad;
+  const x = g => L + (g - a)/(b - a)*(R - L);
+  const raw = (b - a)/4, p10 = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1,2,5,10].map(m => m*p10).find(s => s >= raw);
+  let ticks = "";
+  for (let t = Math.ceil(a/step)*step; t <= b; t += step)
+    ticks += `<line x1="${x(t)}" x2="${x(t)}" y1="22" y2="27" stroke="var(--muted)"/><text x="${x(t)}" y="16" text-anchor="middle" font-size="10" fill="var(--muted)">${fmtInt(t)}</text>`;
+  const col = r.truth === 1 ? "var(--ok)" : "var(--bad)";
+  let sv, ref;
+  if (ins) {
+    const c = x(r.pos);
+    ref = `<line x1="${L}" x2="${R}" y1="48" y2="48" stroke="var(--text)" stroke-width="2"/>`;
+    sv = `<polygon points="${c-7},38 ${c+7},38 ${c},50" fill="${col}"/><text x="${c}" y="68" text-anchor="middle" font-size="11" fill="var(--text)">${bp(r.len)} inserted</text>`;
+  } else {
+    const x1 = x(r.pos), x2 = x(r.pos + span);
+    ref = `<line x1="${L}" x2="${x1}" y1="48" y2="48" stroke="var(--text)" stroke-width="2"/><line x1="${x2}" x2="${R}" y1="48" y2="48" stroke="var(--text)" stroke-width="2"/>`;
+    sv = `<rect x="${x1}" y="42" width="${Math.max(2, x2-x1)}" height="12" fill="${col}" opacity=".18"/><line x1="${x1}" x2="${x2}" y1="48" y2="48" stroke="${col}" stroke-width="2" stroke-dasharray="4 3"/><text x="${(x1+x2)/2}" y="68" text-anchor="middle" font-size="11" fill="var(--text)">${bp(span)} deleted</text>`;
+  }
+  const track = (y, name, sup) => {
+    const on = sup !== null && sup !== undefined;
+    const x1 = x(r.pos), w = ins ? 3 : Math.max(3, x(r.pos + span) - x1);
+    return `<text x="${L}" y="${y+4}" font-size="11" fill="var(--muted)">${name}</text>
+      <line x1="${L+70}" x2="${R-70}" y1="${y}" y2="${y}" stroke="var(--border)"/>
+      ${on ? `<rect x="${ins ? x1-1.5 : x1}" y="${y-4}" width="${w}" height="8" rx="2" fill="var(--accent)"/>` : ""}
+      <text x="${R}" y="${y+4}" text-anchor="end" font-size="11" fill="${on ? "var(--text)" : "var(--muted)"}">${on ? fmtInt(sup) + " reads" : "not called"}</text>`;
+  };
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Locus view">${ticks}${ref}${sv}${track(98, "Sniffles2", r.f.sniffles_support)}${track(122, "cuteSV", r.f.cutesv_support)}</svg>`;
+}
+
+function renderDetail(){
+  const r = D.rows.find(x => x.id === state.sel), el = document.getElementById("detail");
+  if (!r) { el.innerHTML = `<p class="muted">Select a candidate.</p>`; return; }
+  const k = keep(r), ok = correct(r);
+  const end = r.type === "INS" ? "" : "–" + fmtInt(r.end || r.pos + Math.abs(r.len));
+  const factors = r.why.slice(0, 6).map(([n, v, val]) => {
+    const [lbl, vt] = factorLabel(n, val), w = Math.min(Math.abs(v)/0.1, 1)*50, up = v >= 0;
+    return `<div class="factor"><div>${lbl}${vt ? `<small>${vt}</small>` : ""}</div>
+      <div class="fbar" title="${up ? "+" : "−"}${Math.abs(v).toFixed(3)}"><i style="${up ? "left" : "right"}:50%;width:${w}%;background:${up ? "var(--ok)" : "var(--bad)"}"></i></div></div>`;
+  }).join("");
+  const rows = ["n_callers","sniffles_support","cutesv_support","caller_qual","filter_pass","support_ratio","mean_mapq","n_split_reads","tr_overlap_frac","segdup_overlap","gc_content"]
+    .filter(f => f in r.f).map(f => `<tr><td>${LABEL[f]}</td><td>${fmtVal(f, r.f[f])}</td></tr>`).join("");
+  el.innerHTML = `
+    <div class="d-head"><h3>${CH}:${fmtInt(r.pos)}${end}</h3><p>${typeName(r.type)}, ${bp(r.len)}</p></div>
+    <div class="tiles">
+      <div class="tile"><span>Prediction <span class="badge ${ok ? "ok" : "bad"}" style="display:inline-block;margin-left:4px">${ok ? "Correct" : "Incorrect"}</span></span><b>${k ? "Real SV" : "False call"}</b></div>
+      <div class="tile"><span>GIAB truth</span><b>${r.truth ? "Real SV" : "False call"}</b></div>
+      <div class="tile"><span>Score</span><b class="num">${r.p.toFixed(2)}</b>
+        <div class="bar"><i style="width:${(r.p*100).toFixed(1)}%"></i><em style="left:calc(${(thr*100).toFixed(1)}% - 1px)"></em></div></div>
+    </div>
+    <div class="svgbox">${locusSvg(r)}</div>
+    <div class="cols">
+      <div><h4>Main factors</h4><div class="legend-row"><span class="down">False</span><span class="up">Real</span></div>${factors}</div>
+      <div><h4>Evidence</h4><table class="kv">${rows}</table></div>
+    </div>`;
+}
+
+function renderThreshold(m){
   document.getElementById("thr-val").textContent = thr.toFixed(2);
-  const m = metricsAt(thr), I = D.ops.intersection;
-  document.getElementById("mets").innerHTML = [
-    ["Precision", m.P, I.p], ["Recall", m.R, I.r], ["F1", m.F, I.f1]
-  ].map(([l, v, b]) => `<div class="met"><span>${l}</span><b>${v.toFixed(3)}</b><small>baseline ${b.toFixed(3)}</small></div>`).join("");
+  const I = D.ops.intersection;
+  document.getElementById("mets").innerHTML = [["Precision", m.P, I.p], ["Recall", m.R, I.r], ["F1", m.F, I.f1]]
+    .map(([l, v, b]) => `<div class="met"><span>${l}</span><b class="num">${v.toFixed(3)}</b><small class="num">Baseline ${b.toFixed(3)}</small></div>`).join("");
   document.getElementById("cm").innerHTML = `
-    <div class="h"></div><div class="h">GIAB: real</div><div class="h">GIAB: artefact</div>
-    <div class="h">Kept</div><div class="v">${m.tp}<small>true positives</small></div><div class="v">${m.fp}<small>false positives</small></div>
-    <div class="h">Rejected</div><div class="v">${m.fn}<small>real SVs thrown away</small></div><div class="v">${m.tn}<small>artefacts removed</small></div>`;
-  document.getElementById("missed").textContent = `Plus ${D.missed} real SVs that neither caller proposed. They count as missed at every threshold, which is why recall cannot pass ${D.ceiling.toFixed(3)}. "Baseline" is keeping only candidates both callers agree on.`;
+    <tr><th></th><th>Truth: real</th><th>Truth: false</th></tr>
+    <tr><th>Predicted real</th><td><b class="num">${m.tp}</b></td><td><b class="num">${m.fp}</b></td></tr>
+    <tr><th>Predicted false</th><td><b class="num">${m.fn}</b></td><td><b class="num">${m.tn}</b></td></tr>`;
+  document.getElementById("note").textContent = `Baseline: calls found by both callers. Recall cannot exceed ${D.ceiling.toFixed(3)} because ${D.missed} real SVs were not found by either caller.`;
   drawPR(m);
 }
+
 function drawPR(m){
-  const svg = document.getElementById("pr");
-  const W = 600, H = 400, ml = 54, mr = 18, mt = 16, mb = 46;
-  const rx = [0.35, 0.75], py = [0.60, 1.0];
-  const X = r => ml + (r - rx[0]) / (rx[1] - rx[0]) * (W - ml - mr);
-  const Y = p => mt + (1 - (p - py[0]) / (py[1] - py[0])) * (H - mt - mb);
+  const W = 600, H = 380, ml = 50, mr = 16, mt = 12, mb = 44;
+  const rx = [0.35, 0.75], py = [0.6, 1.0];
+  const X = r => ml + (r - rx[0])/(rx[1] - rx[0])*(W - ml - mr);
+  const Y = p => mt + (1 - (p - py[0])/(py[1] - py[0]))*(H - mt - mb);
   let g = "";
-  for (let r = 0.4; r <= 0.701; r += 0.1) g += `<line x1="${X(r)}" x2="${X(r)}" y1="${mt}" y2="${H-mb}" stroke="var(--line)"/><text x="${X(r)}" y="${H-mb+18}" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--muted)">${r.toFixed(1)}</text>`;
-  for (let p = 0.6; p <= 1.001; p += 0.1) g += `<line x1="${ml}" x2="${W-mr}" y1="${Y(p)}" y2="${Y(p)}" stroke="var(--line)"/><text x="${ml-8}" y="${Y(p)+4}" text-anchor="end" font-size="11" font-family="var(--mono)" fill="var(--muted)">${p.toFixed(1)}</text>`;
-  g += `<text x="${(ml + W - mr)/2}" y="${H-8}" text-anchor="middle" font-size="12" fill="var(--muted)">Recall (share of all ${D.truth_total} real SVs in the test windows)</text>`;
-  g += `<text transform="translate(14 ${(mt + H - mb)/2}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--muted)">Precision</text>`;
+  for (let r = 0.4; r <= 0.701; r += 0.1) g += `<line x1="${X(r)}" x2="${X(r)}" y1="${mt}" y2="${H-mb}" stroke="var(--border)"/><text x="${X(r)}" y="${H-mb+16}" text-anchor="middle" font-size="11" fill="var(--muted)">${r.toFixed(1)}</text>`;
+  for (let p = 0.6; p <= 1.001; p += 0.1) g += `<line x1="${ml}" x2="${W-mr}" y1="${Y(p)}" y2="${Y(p)}" stroke="var(--border)"/><text x="${ml-8}" y="${Y(p)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${p.toFixed(1)}</text>`;
+  g += `<text x="${(ml+W-mr)/2}" y="${H-6}" text-anchor="middle" font-size="12" fill="var(--muted)">Recall</text>`;
+  g += `<text transform="translate(13 ${(mt+H-mb)/2}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--muted)">Precision</text>`;
   const cx = X(D.ceiling);
-  g += `<line x1="${cx}" x2="${cx}" y1="${mt}" y2="${H-mb}" stroke="var(--muted)" stroke-dasharray="5 4"/><text x="${cx+6}" y="${mt+12}" font-size="11" fill="var(--muted)">recall ceiling ${D.ceiling.toFixed(3)}</text>`;
-  const curve = (c, color) => {
-    const pts = c.r.map((r, i) => [r, c.p[i]]).filter(([r]) => r >= rx[0]);
-    return `<polyline fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" points="${pts.map(([r,p]) => `${X(r).toFixed(1)},${Y(p).toFixed(1)}`).join(" ")}"/>`;
-  };
+  g += `<line x1="${cx}" x2="${cx}" y1="${mt}" y2="${H-mb}" stroke="var(--muted)" stroke-dasharray="4 4"/>`;
+  const curve = (c, color) => `<polyline fill="none" stroke="${color}" stroke-width="2" points="${c.r.map((r, i) => [r, c.p[i]]).filter(([r]) => r >= rx[0]).map(([r, p]) => `${X(r).toFixed(1)},${Y(p).toFixed(1)}`).join(" ")}"/>`;
   g += `<g clip-path="url(#plot)">${curve(D.pr.xgboost, "var(--second)")}${curve(D.pr.rf, "var(--accent)")}</g>`;
-  const pts = [
-    ["sniffles2", "Sniffles2", -10, 18, "end"], ["intersection", "Both agree", -10, -8, "end"],
-    ["cutesv", "cuteSV", -10, 4, "end"], ["union", "Either caller", 10, 16, "start"]
-  ];
-  for (const [k, lbl, dx, dy, anc] of pts) {
+  for (const [k, lbl, dx, dy, anc] of [["sniffles2","Sniffles2",-9,16,"end"],["intersection","Both callers",-9,-7,"end"],["cutesv","cuteSV",-9,4,"end"],["union","Either caller",9,15,"start"]]) {
     const o = D.ops[k]; if (!o) continue;
-    g += `<rect x="${X(o.r)-5}" y="${Y(o.p)-5}" width="10" height="10" transform="rotate(45 ${X(o.r)} ${Y(o.p)})" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.6"/>
-          <text x="${X(o.r)+dx}" y="${Y(o.p)+dy}" text-anchor="${anc}" font-size="11" fill="var(--ink)">${lbl}</text>`;
+    g += `<rect x="${X(o.r)-4.5}" y="${Y(o.p)-4.5}" width="9" height="9" transform="rotate(45 ${X(o.r)} ${Y(o.p)})" fill="var(--card)" stroke="var(--text)" stroke-width="1.5"/><text x="${X(o.r)+dx}" y="${Y(o.p)+dy}" text-anchor="${anc}" font-size="11" fill="var(--text)">${lbl}</text>`;
   }
-  g += `<circle cx="${X(m.R)}" cy="${Y(m.P)}" r="7" fill="var(--accent)" stroke="var(--surface)" stroke-width="2.5"/>
-        <text x="${X(m.R)+12}" y="${Y(m.P)-10}" text-anchor="start" font-size="11" font-weight="600" fill="var(--accent)">RF at ${thr.toFixed(2)}</text>`;
-  svg.innerHTML = `<defs><clipPath id="plot"><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${H-mt-mb}"/></clipPath></defs>${g}`;
-}
-function renderLegend(){
-  document.getElementById("legend").innerHTML = `
-    <span><i style="background:var(--accent)"></i>Random Forest</span>
-    <span><i style="background:var(--second)"></i>XGBoost</span>
-    <span><svg width="12" height="12" aria-hidden="true"><rect x="3" y="3" width="6" height="6" transform="rotate(45 6 6)" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/></svg>Heuristic baselines</span>
-    <span><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--accent)"/></svg>Current threshold</span>`;
+  g += `<circle cx="${X(m.R)}" cy="${Y(m.P)}" r="6" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`;
+  document.getElementById("pr").innerHTML = `<defs><clipPath id="plot"><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${H-mt-mb}"/></clipPath></defs>${g}`;
 }
 
+document.getElementById("legend").innerHTML = `
+  <span><i style="background:var(--accent)"></i>Random Forest</span>
+  <span><i style="background:var(--second)"></i>XGBoost</span>
+  <span><svg width="10" height="10" aria-hidden="true"><rect x="2" y="2" width="6" height="6" transform="rotate(45 5 5)" fill="var(--card)" stroke="var(--text)" stroke-width="1.3"/></svg>Baselines</span>
+  <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--accent)"/></svg>Current threshold</span>
+  <span><i style="background:none;border-top:2px dashed var(--muted);height:0"></i>Max recall</span>`;
 
-const thrEl = document.getElementById("thr");
-thrEl.value = thr;
-thrEl.addEventListener("input", () => { thr = +thrEl.value; refresh(); });
-document.getElementById("thr-reset").onclick = () => { thr = D.threshold; thrEl.value = thr; refresh(); };
-function refresh(){ renderStats(); renderList(); renderDetail(); renderThreshold(); }
-seg("f-out", [["all","All"],["keep","Kept"],["reject","Rejected"],["wrong","Mistakes"]], "out");
-seg("f-type", [["all","DEL + INS"],["DEL","DEL"],["INS","INS"]], "type");
-seg("f-sort", [["pos","By position"],["hi","Highest score"],["lo","Lowest score"]], "sort");
+function refresh(){ const m = metricsAt(thr); renderKpis(m); renderList(); renderDetail(); renderThreshold(m); }
+const on = (id, ev, fn) => document.getElementById(id).addEventListener(ev, fn);
+on("f-out", "change", e => { state.out = e.target.value; renderList(); });
+on("f-type", "change", e => { state.type = e.target.value; renderList(); });
+on("f-sort", "change", e => { state.sort = e.target.value; renderList(); });
+on("rows", "click", e => { const tr = e.target.closest("tr[data-id]"); if (tr) select(tr.dataset.id); });
+on("rows", "keydown", e => { const tr = e.target.closest("tr[data-id]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(tr.dataset.id); } });
+const slider = document.getElementById("thr");
+slider.value = thr;
+slider.addEventListener("input", () => { thr = +slider.value; refresh(); });
+on("thr-reset", "click", () => { thr = D.threshold; slider.value = thr; refresh(); });
 state.sel = (D.rows.find(r => r.pos === 40398219) || D.rows[0]).id;
-renderLegend(); refresh();
+refresh();
 </script>
 </body>
 </html>
