@@ -732,7 +732,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--min-sv-length", type=int, default=50)
     p.set_defaults(func=cmd_inspect_vcf)
 
-    p = sub.add_parser("merge", help="merge caller VCFs with SURVIVOR and attach provenance")
+    p = sub.add_parser("merge", help="merge caller VCFs with truvari collapse and attach provenance")
     _common(p)
     p.add_argument("--sniffles", required=True)
     p.add_argument("--cutesv", required=True)

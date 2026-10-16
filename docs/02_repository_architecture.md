@@ -24,7 +24,7 @@ dna-project/
 │   │   ├── 02_qc.smk             NanoPlot, metrics parsing, accept/flag
 │   │   ├── 03_align.smk          minimap2, sort, index, samtools stats
 │   │   ├── 04_call.smk           Sniffles2, cuteSV
-│   │   ├── 05_merge.smk          bcftools norm, SURVIVOR/Jasmine merge
+│   │   ├── 05_merge.smk          bcftools norm, truvari collapse merge
 │   │   ├── 06_features.smk       feature extraction
 │   │   ├── 07_labels.smk         confident-region gate, truvari matching
 │   │   ├── 08_train.smk          RF / XGBoost, all stages, all ablations

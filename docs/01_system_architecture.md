@@ -51,7 +51,7 @@ STAGE 3  ALIGNMENT                          minimap2 -ax map-ont | map-hifi
           └────────────────────────┬─────────────────────────┘
                                    ▼
           ┌──────────────────────────────────────────────────┐
-          │ SURVIVOR / Jasmine merge  (params in config)[H5] │
+          │ truvari collapse merge  (params in config)[H5]   │
           │ ──► unified candidate set, per-caller provenance │
           └────────────────────────┬─────────────────────────┘
                                    │
