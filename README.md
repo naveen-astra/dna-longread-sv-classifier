@@ -45,7 +45,7 @@ candidates they produce, so it can only ever recover SVs that at least one calle
 | | |
 |---|---|
 | Architecture | **Complete**. Reviewed against verified GIAB sources; see [docs/](docs/) |
-| Implementation | **Complete**. 12 Snakemake rule files, the `svml` Python package, 87 unit tests passing, `ruff` clean |
+| Implementation | **Complete**. 12 Snakemake rule files, the `svml` Python package, 86 unit tests passing, `ruff` clean |
 | Execution | **Complete for the Tier-1 pilot**. All stages ran end to end on real GIAB data under WSL2 |
 | Results | **Measured** on held-out chr22 windows; nothing in this README is illustrative |
 | Outstanding | Manual IGV curation of errors, a fresh-clone reproducibility check, the Tier-2 scaling decision |
@@ -537,7 +537,6 @@ python scripts/build_site.py --results ~/svml-work/results
 ```
 Snakefile                 orchestrator; `all` + milestone1/2/3 targets
 workflow/rules/*.smk      12 stages, 00_references -> 11_report
-workflow/envs/*.yaml      per-stage tool lists (documentation; one env is used in practice)
 config/                   config.yaml, samples.tsv, references.yaml
 src/svml/                 importable, unit-testable package
   io/                     records (pysam-free), vcf, bam, bed
@@ -558,7 +557,7 @@ scripts/
 site/index.html           the interactive demo
 docs/                     architecture, features, ML task, evaluation, execution plan
 docs/figures/             result figures shown in this README
-tests/                    87 tests
+tests/                    86 tests
 ```
 
 Two design rules hold the architecture together:
@@ -628,7 +627,7 @@ Everything is driven by three files; no path is hardcoded:
 python -m pytest tests/ -q
 ```
 
-87 tests cover config validation, feature maths, the confident-region gate, split leakage,
+86 tests cover config validation, feature maths, the confident-region gate, split leakage,
 training and multiclass decoding, the evaluation guards, the report and the truvari wrapper.
 They run on Windows too; tests needing pysam, XGBoost or bcftools skip when those are missing.
 
