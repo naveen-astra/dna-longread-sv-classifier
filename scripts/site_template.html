@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SV Classifier Demo</title>
-<meta name="description" content="Interactive demo of a long-read structural-variant classifier benchmarked on GIAB HG002.">
+<title>Long-read SV Classifier</title>
+<meta name="description" content="Machine-learning filter for structural variants called from long-read sequencing, benchmarked on GIAB HG002.">
 <style>
 :root{
   --bg:#F6F7F9; --card:#FFFFFF; --text:#111827; --muted:#6B7280; --border:#E5E7EB; --subtle:#F3F4F6;
   --accent:#2563EB; --accent-bg:#EFF6FF; --second:#D97706;
-  --ok:#15803D; --ok-bg:#ECFDF3; --bad:#B91C1C; --bad-bg:#FEF2F2;
+  --ok:#15803D; --ok-bg:#ECFDF3; --bad:#B91C1C; --bad-bg:#FEF2F2; --warn-bg:#FFFBEB; --warn:#92400E;
   --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace;
 }
@@ -18,72 +18,123 @@
     color-scheme:dark;
     --bg:#0B0F14; --card:#121821; --text:#E5E7EB; --muted:#9CA3AF; --border:#243040; --subtle:#18202B;
     --accent:#60A5FA; --accent-bg:#13233A; --second:#F59E0B;
-    --ok:#4ADE80; --ok-bg:#0F2A1B; --bad:#F87171; --bad-bg:#2D1414;
+    --ok:#4ADE80; --ok-bg:#0F2A1B; --bad:#F87171; --bad-bg:#2D1414; --warn-bg:#2A2110; --warn:#FBBF24;
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
   --bg:#0B0F14; --card:#121821; --text:#E5E7EB; --muted:#9CA3AF; --border:#243040; --subtle:#18202B;
   --accent:#60A5FA; --accent-bg:#13233A; --second:#F59E0B;
-  --ok:#4ADE80; --ok-bg:#0F2A1B; --bad:#F87171; --bad-bg:#2D1414;
+  --ok:#4ADE80; --ok-bg:#0F2A1B; --bad:#F87171; --bad-bg:#2D1414; --warn-bg:#2A2110; --warn:#FBBF24;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--font)}
-h1,h2,h3{margin:0;line-height:1.25;text-wrap:balance}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 var(--font)}
+h1,h2,h3,h4{margin:0;line-height:1.25;text-wrap:balance}
 p{margin:0}
+ul{margin:0;padding-left:20px}
+li+li{margin-top:6px}
 .num{font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:.92em}
 button,select,input{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
 
-.topbar{background:var(--card);border-bottom:1px solid var(--border)}
-.topbar-inner{max-width:1200px;margin:0 auto;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.brand{font-weight:600}
-.topbar a{color:var(--muted);text-decoration:none;font-size:13px}
-.topbar a:hover{color:var(--text)}
+.topbar{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--border)}
+.topbar-inner{max-width:1160px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:20px}
+.brand{font-weight:650;white-space:nowrap}
+.nav{display:flex;gap:2px;overflow-x:auto;flex:1;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{padding:6px 10px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
+.nav a:hover{background:var(--subtle);color:var(--text)}
+.ext{color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
+.ext:hover{color:var(--text)}
 
-main{max-width:1200px;margin:0 auto;padding:28px 20px 48px;display:flex;flex-direction:column;gap:28px}
-.intro{display:flex;flex-direction:column;gap:6px}
-.intro h1{font-size:26px;font-weight:650}
-.intro p{color:var(--muted);max-width:70ch}
+main{max-width:1160px;margin:0 auto;padding:0 20px 48px}
+section{padding-top:48px;scroll-margin-top:56px;display:flex;flex-direction:column;gap:16px}
+section>h2{font-size:22px;font-weight:650}
+.lead{color:var(--muted);max-width:75ch}
+.sub{font-size:16px;font-weight:600;margin-top:8px}
 
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.kpi{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
-.kpi span{display:block;font-size:12px;color:var(--muted)}
-.kpi b{display:block;font-size:22px;font-weight:650;margin-top:2px}
+.hero{padding-top:40px;display:flex;flex-direction:column;gap:14px}
+.hero h1{font-size:32px;font-weight:700;letter-spacing:-.01em}
+.hero .lead{font-size:16px}
+.summary{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.summary b{font-weight:600}
 
 .card{background:var(--card);border:1px solid var(--border);border-radius:8px}
-.card-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.card-head h2{font-size:15px;font-weight:600}
-section{display:flex;flex-direction:column;gap:12px}
-section > h2{font-size:18px;font-weight:600}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;counter-reset:s}
+.steps li{margin:0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;counter-increment:s}
+.steps li::before{content:counter(s);display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font-size:13px;font-weight:600;margin-bottom:8px}
+.steps b{display:block;margin-bottom:2px}
+.steps span{font-size:13px;color:var(--muted);display:block}
+.tools{font-size:13px;color:var(--muted)}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--border);background:var(--subtle);white-space:nowrap}
+.tbl td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .r{text-align:right}
+.tbl tr.hl td{background:var(--accent-bg)}
+.badge{display:inline-block;font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)}
+.badge.g{background:var(--subtle);color:var(--muted)}
+.badge.B{background:#EFF6FF;color:#1D4ED8}.badge.A{background:#ECFDF3;color:#15803D}
+.badge.C{background:#FEF3C7;color:#92400E}.badge.V{background:#F3E8FF;color:#7E22CE}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .badge.B{background:#13233A;color:#93C5FD}
+  :root:not([data-theme="light"]) .badge.A{background:#0F2A1B;color:#86EFAC}
+  :root:not([data-theme="light"]) .badge.C{background:#2A2110;color:#FCD34D}
+  :root:not([data-theme="light"]) .badge.V{background:#241338;color:#D8B4FE}
+}
+:root[data-theme="dark"] .badge.B{background:#13233A;color:#93C5FD}
+:root[data-theme="dark"] .badge.A{background:#0F2A1B;color:#86EFAC}
+:root[data-theme="dark"] .badge.C{background:#2A2110;color:#FCD34D}
+:root[data-theme="dark"] .badge.V{background:#241338;color:#D8B4FE}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--text);color:var(--card);border-color:var(--text)}
+.feat-wrap{max-height:560px;overflow:auto}
+.feat-wrap th{position:sticky;top:0}
+
+.findings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.finding{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.finding h4{font-size:15px;margin-bottom:4px}
+.finding p{font-size:14px;color:var(--muted)}
+.finding.warn{background:var(--warn-bg)}
+.finding.warn h4{color:var(--warn)}
+.imp{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.imp-row{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr) 36px;gap:10px;align-items:center;font-size:13.5px}
+.imp-bar{height:8px;background:var(--subtle);border-radius:4px}
+.imp-bar i{display:block;height:100%;border-radius:4px;background:var(--accent)}
+.imp-row .v{text-align:right;color:var(--muted);font-size:12.5px}
 
 .explore{display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);gap:16px;align-items:start}
 .controls{display:flex;gap:8px;flex-wrap:wrap}
 .controls label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 select{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px}
 .table-wrap{max-height:600px;overflow:auto}
-table{width:100%;border-collapse:collapse}
 .list th{position:sticky;top:0;background:var(--subtle);text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border)}
 .list td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;white-space:nowrap}
 .list tbody tr{cursor:pointer}
 .list tbody tr:hover{background:var(--subtle)}
 .list tbody tr[aria-selected="true"]{background:var(--accent-bg)}
 .list td.r,.list th.r{text-align:right}
-.badge{display:inline-block;font-size:12px;font-weight:500;padding:2px 8px;border-radius:999px}
-.badge.ok{background:var(--ok-bg);color:var(--ok)}
-.badge.bad{background:var(--bad-bg);color:var(--bad)}
 .count{font-size:12px;color:var(--muted)}
-
 .detail{padding:20px;display:flex;flex-direction:column;gap:20px;min-width:0}
 .d-head h3{font-size:18px;font-weight:600;font-family:var(--mono)}
 .d-head p{color:var(--muted);margin-top:2px}
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .tile{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
-.tile span{display:block;font-size:12px;color:var(--muted)}
+.tile>span{display:block;font-size:12px;color:var(--muted)}
 .tile b{display:block;font-size:16px;font-weight:600;margin-top:2px}
-.tile b.ok{color:var(--ok)} .tile b.bad{color:var(--bad)}
 .bar{position:relative;height:6px;background:var(--subtle);border-radius:3px;margin-top:8px}
 .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--accent)}
 .bar em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text)}
@@ -92,12 +143,12 @@ table{width:100%;border-collapse:collapse}
 .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
 .cols h4{margin:0 0 10px;font-size:13px;font-weight:600}
 .factor{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px;align-items:center;padding:5px 0;font-size:13px}
-.factor small{color:var(--muted);margin-left:4px}
+.factor small{color:var(--muted);margin-left:4px;white-space:nowrap}
 .fbar{position:relative;height:10px}
 .fbar::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--border)}
 .fbar i{position:absolute;top:1px;bottom:1px;border-radius:2px}
 .legend-row{display:flex;justify-content:flex-end;gap:14px;font-size:12px;color:var(--muted);margin-bottom:4px}
-.legend-row span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
+.legend-row span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
 .legend-row .up::before{background:var(--ok)} .legend-row .down::before{background:var(--bad)}
 .kv td{padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
 .kv td:last-child{text-align:right;font-variant-numeric:tabular-nums}
@@ -116,22 +167,23 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:8px 0 6px}
 .cm th,.cm td{border:1px solid var(--border);padding:8px 10px;font-size:13px;text-align:center}
 .cm th{background:var(--subtle);font-weight:600;color:var(--muted);font-size:12px}
 .cm td b{font-size:16px}
-.note{font-size:12px;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted)}
 .chart{padding:12px 16px 16px}
 .chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .chart-legend span{display:inline-flex;align-items:center;gap:6px}
 .chart-legend i{display:inline-block;width:16px;height:3px;border-radius:2px}
 
-footer{max-width:1200px;margin:0 auto;padding:0 20px 32px;font-size:12px;color:var(--muted)}
+footer{max-width:1160px;margin:0 auto;padding:40px 20px 32px;font-size:13px;color:var(--muted)}
 
-@media (max-width:960px){
-  .explore,.thr,.cols{grid-template-columns:1fr}
+@media (max-width:1000px){
+  .steps,.groups,.facts,  .explore,.thr,.cols,.findings{grid-template-columns:1fr}
   .table-wrap{max-height:340px}
-  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media (max-width:480px){
+@media (max-width:560px){
   main,.topbar-inner,footer{padding-left:16px;padding-right:16px}
-  .tiles{grid-template-columns:1fr}
+  .steps,.groups,.facts,  .tiles{grid-template-columns:1fr}
+  .ext{display:none}
+  .imp-row{grid-template-columns:minmax(0,130px) minmax(0,1fr) 36px}
 }
 </style>
 </head>
@@ -139,20 +191,80 @@ footer{max-width:1200px;margin:0 auto;padding:0 20px 32px;font-size:12px;color:v
 <header class="topbar">
   <div class="topbar-inner">
     <span class="brand">SV Classifier</span>
-    <a href="https://github.com/naveen-astra/dna-longread-sv-classifier">GitHub</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#overview">Overview</a><a href="#pipeline">Pipeline</a><a href="#data">Data</a>
+      <a href="#features">Features</a><a href="#models">Models</a><a href="#results">Results</a>
+      <a href="#demo">Demo</a><a href="#limitations">Limitations</a>
+    </nav>
+    <a class="ext" href="https://github.com/naveen-astra/dna-longread-sv-classifier">GitHub</a>
   </div>
 </header>
 
 <main>
-  <div class="intro">
+  <div class="hero" id="overview">
     <h1>Long-read structural variant classifier</h1>
-    <p>A Random Forest scores each candidate from Sniffles2 and cuteSV as a real SV or a false call. Below are its predictions on 281 held-out candidates from chr22 (GIAB HG002, Oxford Nanopore).</p>
+    <p class="lead">Structural variants (SVs) are DNA changes of 50 bases or more. Long-read callers such as Sniffles2 and cuteSV find them but also report many false calls. This project trains Random Forest and XGBoost classifiers to separate real calls from false ones and tests them against the GIAB HG002 truth set.</p>
+    <div class="summary" id="summary"></div>
   </div>
 
-  <div class="kpis" id="kpis"></div>
+  <section id="pipeline">
+    <h2>Pipeline</h2>
+    <p class="lead">One Snakemake workflow runs from raw reads to a scored callset. The classifier filters the callers' candidates; it does not replace the callers.</p>
+    <ol class="steps">
+      <li><b>Reads</b><span>GIAB reads for selected regions, quality-checked with NanoPlot.</span></li>
+      <li><b>Alignment</b><span>Minimap2 aligns reads to GRCh38.</span></li>
+      <li><b>Calling</b><span>Sniffles2 and cuteSV propose candidate SVs.</span></li>
+      <li><b>Merging</b><span>truvari collapse merges the two callsets.</span></li>
+      <li><b>Features</b><span>33 measurements per candidate.</span></li>
+      <li><b>Labels</b><span>truvari bench matches candidates to GIAB v5.0q.</span></li>
+      <li><b>Models</b><span>Random Forest and XGBoost, split by chromosome.</span></li>
+      <li><b>Outputs</b><span>Scored VCF, benchmark, SHAP explanations, report.</span></li>
+    </ol>
+    <p class="tools">Tools: minimap2, samtools, bcftools, NanoPlot, Sniffles2, cuteSV, truvari, scikit-learn, XGBoost, SHAP, Snakemake.</p>
+  </section>
 
-  <section aria-labelledby="h-explore">
-    <h2 id="h-explore">Predictions</h2>
+  <section id="data">
+    <h2>Data</h2>
+    <p class="lead">Reference: GRCh38. Truth: GIAB HG002 v5.0q. Reads cover selected regions rather than whole genomes.</p>
+    <div class="card tbl-wrap"><table class="tbl" id="samples"></table></div>
+    <p class="lead">Only HG002 has SV truth, so the labelled data is split by chromosome.</p>
+    <div class="card tbl-wrap"><table class="tbl" id="splits"></table></div>
+    <p class="note" id="gate"></p>
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <p class="lead">33 features in four groups. Read evidence and genomic context are independent of the callers; caller evidence and caller-declared features come from the callers' output.</p>
+    <div class="chips" id="feat-chips" role="group" aria-label="Filter features by group"></div>
+    <div class="card feat-wrap"><table class="tbl" id="feat-table"></table></div>
+  </section>
+
+  <section id="models">
+    <h2>Models</h2>
+    <p class="lead">Stage A, real or false, is the main task. Stages B and C predict the SV type.</p>
+    <div class="card tbl-wrap"><table class="tbl">
+      <thead><tr><th>Stage</th><th>Question</th><th>Labels from</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><b>A</b></td><td>Is the call real or false?</td><td>GIAB v5.0q</td><td><span class="badge ok">Primary result</span></td></tr>
+        <tr><td><b>B</b></td><td>Deletion or insertion?</td><td>GIAB v5.0q</td><td><span class="badge g">Sanity check only</span></td></tr>
+        <tr><td><b>C</b></td><td>Which of five types?</td><td>Caller consensus</td><td><span class="badge g">Exploratory</span></td></tr>
+      </tbody></table></div>
+    <div class="card tbl-wrap"><table class="tbl" id="models-table"></table></div>
+    <p class="note">Scores are calibrated. The threshold is chosen on the validation chromosome; the test chromosome is scored once.</p>
+  </section>
+
+  <section id="results">
+    <h2>Results</h2>
+    <p class="lead">Held-out chr22 test windows. Recall counts every real SV, including those neither caller found.</p>
+    <div class="card tbl-wrap"><table class="tbl" id="methods"></table></div>
+    <div class="findings" id="findings"></div>
+    <h3 class="sub">What the Random Forest relies on</h3>
+    <div class="card imp" id="importance"></div>
+  </section>
+
+  <section id="demo">
+    <h2>Demo</h2>
+    <p class="lead">Random Forest predictions on the 281 held-out candidates.</p>
     <div class="explore">
       <div class="card">
         <div class="card-head">
@@ -192,10 +304,7 @@ footer{max-width:1200px;margin:0 auto;padding:0 20px 32px;font-size:12px;color:v
       </div>
       <div class="card detail" id="detail" aria-live="polite"></div>
     </div>
-  </section>
-
-  <section aria-labelledby="h-thr">
-    <h2 id="h-thr">Decision threshold</h2>
+    <h3 class="sub">Decision threshold</h3>
     <div class="thr">
       <div class="card thr-body">
         <div class="slider">
@@ -213,15 +322,22 @@ footer{max-width:1200px;margin:0 auto;padding:0 20px 32px;font-size:12px;color:v
       </div>
     </div>
   </section>
+
+  <section id="limitations">
+    <h2>Limitations</h2>
+    <ul id="limits"></ul>
+  </section>
 </main>
 
-<footer>Trained on chr16, tuned on chr19, tested on chr22. Truth: GIAB HG002 v5.0q.</footer>
+<footer>Trained on chr16, tuned on chr19, tested on chr22. Truth: GIAB HG002 v5.0q. Source code and documentation on <a href="https://github.com/naveen-astra/dna-longread-sv-classifier">GitHub</a>.</footer>
 
 <script>
 const D = /*DATA*/null;
 const CH = D.chrom;
 let thr = D.threshold;
-const state = { out: "all", type: "all", sort: "pos", sel: null };
+const state = { out: "all", type: "all", sort: "pos", sel: null, group: "all" };
+const $ = id => document.getElementById(id);
+const on = (id, ev, fn) => $(id).addEventListener(ev, fn);
 
 const LABEL = {
   cutesv_support:"cuteSV supporting reads", sniffles_support:"Sniffles2 supporting reads",
@@ -237,7 +353,14 @@ const LABEL = {
   clip_frac:"Clipped read fraction", span_len:"Span", n_spanning_reads:"Spanning reads",
   strand_balance:"Strand imbalance", dp_local:"Local depth", dp_mad_local:"Depth variability",
   median_mapq:"Median mapping quality", frac_mapq0:"MAPQ-0 fraction", n_clipped_reads:"Clipped reads",
-  rmsk_overlap_frac:"RepeatMasker overlap", log10_svlen:"SV length (log10)"
+  rmsk_overlap_frac:"RepeatMasker overlap", log10_svlen:"SV length (log10)",
+  chrom_class:"Chromosome class", svtype_called:"Declared SV type"
+};
+const GROUPS = {
+  B:["Read evidence","Measured from the aligned reads, independent of the callers."],
+  A:["Genomic context","Repeats, GC content and sequence around the breakpoints."],
+  C:["Caller evidence","What Sniffles2 and cuteSV reported, and how well they agree."],
+  V:["Caller-declared","The type and length the callers assigned."]
 };
 const ISNA = {
   sniffles_support:["Not called by Sniffles2","Called by Sniffles2"],
@@ -247,14 +370,21 @@ const ISNA = {
 };
 const TWO = new Set(["svlen_disagreement","bp_offset_between_callers"]);
 const SUP = new Set(["sniffles_support","cutesv_support"]);
-const fmtInt = n => n.toLocaleString("en-US");
+const PLATFORM = { ONT:"Oxford Nanopore", HIFI:"PacBio HiFi" };
+const ROLE = { labelled:"Labelled: train, tune, test", generalisation:"Generalisation (not evaluated yet)", unlabelled:"No SV truth available" };
+const MODEL = { random_forest:"Random Forest", xgboost:"XGBoost" };
+
+const fmtInt = n => Math.round(n).toLocaleString("en-US");
 const pct = v => (v*100).toFixed(0) + "%";
-const bp = v => { const a = Math.abs(v); return a >= 1e6 ? (a/1e6).toFixed(2)+" Mb" : a >= 1e3 ? (a/1e3).toFixed(1)+" kb" : fmtInt(Math.round(a))+" bp"; };
+const f3 = v => v.toFixed(3);
+const pp = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v*100).toFixed(d) + " pp";
+const sgn = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(3);
+const bp = v => { const a = Math.abs(v); return a >= 1e6 ? (a/1e6).toFixed(2)+" Mb" : a >= 1e3 ? (a/1e3).toFixed(1)+" kb" : fmtInt(a)+" bp"; };
+const typeName = t => t === "DEL" ? "Deletion" : t === "INS" ? "Insertion" : t;
+const ablLabel = a => a === "B+A+C+V" ? "All 33 features" : "Independent evidence (23)";
 
 function fmtVal(name, v){
-  if (v === null || v === undefined || (v === -1 && (SUP.has(name) || TWO.has(name)))) {
-    return SUP.has(name) ? "Not called" : TWO.has(name) ? "—" : "—";
-  }
+  if (v === null || v === undefined || (v === -1 && (SUP.has(name) || TWO.has(name)))) return SUP.has(name) ? "Not called" : "—";
   if (name === "filter_pass") return v ? "Yes" : "No";
   if (name === "n_callers") return v === 2 ? "Both" : "One";
   if (/overlap|gc_content|support_ratio|clip_frac|frac_mapq0/.test(name)) return pct(v);
@@ -274,23 +404,72 @@ function factorLabel(name, v){
   return [LABEL[name] || name, fmtVal(name, v)];
 }
 
+/* ---------- project sections ---------- */
+function renderOverview(){
+  const rf = D.ops.rf, xg = D.ops.xgboost, ix = D.ops.intersection;
+  const lo = (a, b) => Math.min(a, b), hi = (a, b) => Math.max(a, b);
+  $("summary").innerHTML = `<b>Result in brief.</b> On held-out data the classifiers reach precision ${f3(lo(rf.p, xg.p))}–${f3(hi(rf.p, xg.p))} at recall ${f3(lo(rf.r, xg.r))}–${f3(hi(rf.r, xg.r))}, compared with ${f3(ix.p)} at ${f3(ix.r)} for keeping only the calls both callers agree on. At equal recall the improvement over that baseline is ${pp(D.matched.rf.gain, 2)}, which is within the range of chance. See <a href="#results">Results</a>.`;
+}
+function renderData(){
+  $("samples").innerHTML = `<thead><tr><th>Sample</th><th>Platform</th><th>Role</th><th class="r">Reads</th><th class="r">Mapped</th><th class="r">Candidates</th></tr></thead><tbody>` +
+    D.samples.map(s => `<tr><td><b>${s.id.split("_")[0]}</b></td><td>${PLATFORM[s.platform] || s.platform}</td><td>${ROLE[s.role] || s.role}</td><td class="r num">${fmtInt(s.reads)}</td><td class="r num">${(s.mapped*100).toFixed(2)}%</td><td class="r num">${fmtInt(s.candidates)}</td></tr>`).join("") + `</tbody>`;
+  const sp = D.splits, row = (name, chrom, d) => `<tr><td><b>${name}</b></td><td>${chrom}</td><td class="r num">${d["1.0"]}</td><td class="r num">${d["0.0"]}</td><td class="r num">${d["1.0"] + d["0.0"]}</td></tr>`;
+  $("splits").innerHTML = `<thead><tr><th>Split</th><th>Chromosome</th><th class="r">Real</th><th class="r">False</th><th class="r">Labelled</th></tr></thead><tbody>` +
+    row("Train", "chr16", sp.train) + row("Validation", "chr19", sp.val) + row("Test", "chr22", sp.test) + `</tbody>`;
+  const g = D.gate;
+  $("gate").textContent = `Candidates outside GIAB's confident regions (${fmtInt(g.outside_confident_unlabelled)} of ${fmtInt(g.total_candidates)}) are left unlabelled rather than counted as false.`;
+}
+function renderFeatures(){
+  const counts = {}; D.features.forEach(f => counts[f.group] = (counts[f.group] || 0) + 1);
+  const opts = [["all", `All (${D.features.length})`], ...Object.entries(GROUPS).map(([k, v]) => [k, `${v[0]} (${counts[k]})`])];
+  $("feat-chips").innerHTML = opts.map(([k, l]) => `<button type="button" data-g="${k}" aria-pressed="${state.group === k}">${l}</button>`).join("");
+  const rows = D.features.filter(f => state.group === "all" || f.group === state.group);
+  $("feat-table").innerHTML = `<thead><tr><th>Feature</th><th>Group</th><th>What it measures</th></tr></thead><tbody>` +
+    rows.map(f => `<tr><td><span class="mono">${f.name}</span></td><td><span class="badge ${f.group}">${GROUPS[f.group][0]}</span></td><td>${f.definition}</td></tr>`).join("") + `</tbody>`;
+}
+function renderModels(){
+  $("models-table").innerHTML = `<thead><tr><th>Stage A model</th><th>Features</th><th class="r">Validation F1</th><th class="r">Threshold</th></tr></thead><tbody>` +
+    D.models.filter(m => m.stage === "A").map(m => `<tr${m.stage === "A" && m.model === "random_forest" && m.ablation === "B+A+C+V" ? ' class="hl"' : ""}><td>${MODEL[m.model] || m.model}</td><td>${ablLabel(m.ablation)}</td><td class="r num">${m.val.toFixed(3)}</td><td class="r num">${m.threshold.toFixed(2)}</td></tr>`).join("") + `</tbody>`;
+}
+function renderResults(){
+  const o = D.ops, order = [["sniffles2", "Sniffles2 alone"], ["cutesv", "cuteSV alone"], ["union", "Either caller"], ["intersection", "Both callers agree"], ["rf", "Random Forest"], ["xgboost", "XGBoost"]];
+  $("methods").innerHTML = `<thead><tr><th>Method</th><th class="r">Precision</th><th class="r">Precision 95% CI</th><th class="r">Recall</th><th class="r">F1</th></tr></thead><tbody>` +
+    order.map(([k, n]) => { const v = o[k]; return `<tr${k === "rf" ? ' class="hl"' : ""}><td><b>${n}</b></td><td class="r num">${f3(v.p)}</td><td class="r num">${f3(v.ci[0])}–${f3(v.ci[1])}</td><td class="r num">${f3(v.r)}</td><td class="r num">${f3(v.f1)}</td></tr>`; }).join("") + `</tbody>`;
+  const c = D.checks, m = D.matched, cut = c.single.find(s => s.name === "cutesv_support");
+  const ab = (name, all) => D.ablation.find(a => a.model === name && a.all_features === all);
+  const items = [
+    ["Gain over the baseline is not significant", `At the both-callers baseline's recall, Random Forest precision is ${f3(m.rf.p)} vs ${f3(o.intersection.p)} (${pp(m.rf.gain, 2)}). 95% interval: ${pp(c.gain_low)} to ${pp(c.gain_high)}.`, "warn"],
+    ["A single rule does as well", `Ranking by cuteSV read support alone gives precision ${f3(cut.p)} at the same recall.`, "warn"],
+    ["The models depend on the callers' scores", `Without caller features, precision drops to ${f3(ab("Random Forest", false).precision)} (Random Forest) and ${f3(ab("XGBoost", false).precision)} (XGBoost), below the baseline.`, ""],
+    ["Random Forest and XGBoost are equivalent", `F1 difference 95% interval: ${sgn(D.comparison.low)} to ${sgn(D.comparison.high)}.`, ""],
+    ["Recall is capped at " + f3(D.ceiling), `${D.missed} of ${D.truth_total} real SVs were found by neither caller.`, ""],
+    ["Stages B and C are not informative", `Their labels match the callers' declared type (${(c.stage_b_label_matches_caller*100).toFixed(0)}% and ${(c.stage_c_label_matches_caller*100).toFixed(1)}%), so their scores (${c.stage_b_f1.toFixed(3)} and ${c.stage_c_f1}) measure nothing.`, "warn"]
+  ];
+  $("findings").innerHTML = items.map(([t, p, k]) => `<div class="finding ${k}"><h4>${t}</h4><p>${p}</p></div>`).join("");
+  const mx = Math.max(...D.importance.map(i => i.value));
+  $("importance").innerHTML = D.importance.map(i => `<div class="imp-row"><span>${LABEL[i.name] || i.name}</span><div class="imp-bar"><i style="width:${(i.value/mx*100).toFixed(0)}%"></i></div><span class="v num">${i.value.toFixed(3)}</span></div>`).join("") +
+    `<p class="note">Mean absolute SHAP value on the test candidates.</p>`;
+}
+function renderLimits(){
+  const c = D.checks;
+  $("limits").innerHTML = [
+    `Pilot scale: one test window with ${D.truth_total} truth SVs, so intervals are wide and results are not genome-wide.`,
+    `One labelled sample (HG002). The HiFi sample has not been evaluated.`,
+    `GIAB has no duplication, inversion or translocation truth.`,
+    `The repeat-region effect cannot be tested: only ${c.low_repeat_n} test candidates are in low-repeat sequence.`,
+    `Model errors have not been reviewed manually, and GIAB v5.0q is a draft benchmark.`
+  ].map(t => `<li>${t}</li>`).join("");
+}
+
+/* ---------- demo ---------- */
 const keep = r => r.p >= thr;
 const correct = r => keep(r) === (r.truth === 1);
-const typeName = t => t === "DEL" ? "Deletion" : t === "INS" ? "Insertion" : t;
-
 function metricsAt(t){
   let tp=0, fp=0, fn=0, tn=0;
   for (const r of D.rows) { const k = r.p >= t; if (r.truth) k ? tp++ : fn++; else k ? fp++ : tn++; }
   const P = tp + fp ? tp/(tp+fp) : 1, R = tp/D.truth_total, F = P + R ? 2*P*R/(P+R) : 0;
-  return {tp, fp, fn, tn, P, R, F, acc:(tp+tn)/D.rows.length};
+  return {tp, fp, fn, tn, P, R, F};
 }
-
-function renderKpis(m){
-  const items = [["Test candidates", D.rows.length], ["Accuracy", (m.acc*100).toFixed(1)+"%"],
-                 ["Precision", m.P.toFixed(3)], ["Recall", m.R.toFixed(3)]];
-  document.getElementById("kpis").innerHTML = items.map(([l, v]) => `<div class="kpi"><span>${l}</span><b class="num">${v}</b></div>`).join("");
-}
-
 function filtered(){
   const rs = D.rows.filter(r =>
     (state.type === "all" || r.type === state.type) &&
@@ -300,9 +479,8 @@ function filtered(){
 }
 function renderList(){
   const rs = filtered();
-  document.getElementById("count").textContent = `${rs.length} of ${D.rows.length}`;
-  const body = document.getElementById("rows");
-  body.innerHTML = rs.map(r => `<tr data-id="${r.id}" tabindex="0" aria-selected="${state.sel === r.id}">
+  $("count").textContent = `${rs.length} of ${D.rows.length}`;
+  $("rows").innerHTML = rs.map(r => `<tr data-id="${r.id}" tabindex="0" aria-selected="${state.sel === r.id}">
       <td class="num">${fmtInt(r.pos)}</td><td>${r.type}</td><td class="r num">${bp(r.len)}</td>
       <td class="r num">${r.p.toFixed(2)}</td>
       <td><span class="badge ${correct(r) ? "ok" : "bad"}">${correct(r) ? "Correct" : "Incorrect"}</span></td></tr>`).join("")
@@ -313,7 +491,6 @@ function select(id){
   document.querySelectorAll("#rows tr").forEach(tr => tr.setAttribute("aria-selected", tr.dataset.id === id));
   renderDetail();
 }
-
 function locusSvg(r){
   const W = 640, H = 140, L = 12, R = W - 12;
   const ins = r.type === "INS";
@@ -338,18 +515,17 @@ function locusSvg(r){
     sv = `<rect x="${x1}" y="42" width="${Math.max(2, x2-x1)}" height="12" fill="${col}" opacity=".18"/><line x1="${x1}" x2="${x2}" y1="48" y2="48" stroke="${col}" stroke-width="2" stroke-dasharray="4 3"/><text x="${(x1+x2)/2}" y="68" text-anchor="middle" font-size="11" fill="var(--text)">${bp(span)} deleted</text>`;
   }
   const track = (y, name, sup) => {
-    const on = sup !== null && sup !== undefined;
+    const has = sup !== null && sup !== undefined;
     const x1 = x(r.pos), w = ins ? 3 : Math.max(3, x(r.pos + span) - x1);
     return `<text x="${L}" y="${y+4}" font-size="11" fill="var(--muted)">${name}</text>
       <line x1="${L+70}" x2="${R-70}" y1="${y}" y2="${y}" stroke="var(--border)"/>
-      ${on ? `<rect x="${ins ? x1-1.5 : x1}" y="${y-4}" width="${w}" height="8" rx="2" fill="var(--accent)"/>` : ""}
-      <text x="${R}" y="${y+4}" text-anchor="end" font-size="11" fill="${on ? "var(--text)" : "var(--muted)"}">${on ? fmtInt(sup) + " reads" : "not called"}</text>`;
+      ${has ? `<rect x="${ins ? x1-1.5 : x1}" y="${y-4}" width="${w}" height="8" rx="2" fill="var(--accent)"/>` : ""}
+      <text x="${R}" y="${y+4}" text-anchor="end" font-size="11" fill="${has ? "var(--text)" : "var(--muted)"}">${has ? fmtInt(sup) + " reads" : "not called"}</text>`;
   };
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Locus view">${ticks}${ref}${sv}${track(98, "Sniffles2", r.f.sniffles_support)}${track(122, "cuteSV", r.f.cutesv_support)}</svg>`;
 }
-
 function renderDetail(){
-  const r = D.rows.find(x => x.id === state.sel), el = document.getElementById("detail");
+  const r = D.rows.find(x => x.id === state.sel), el = $("detail");
   if (!r) { el.innerHTML = `<p class="muted">Select a candidate.</p>`; return; }
   const k = keep(r), ok = correct(r);
   const end = r.type === "INS" ? "" : "–" + fmtInt(r.end || r.pos + Math.abs(r.len));
@@ -363,7 +539,7 @@ function renderDetail(){
   el.innerHTML = `
     <div class="d-head"><h3>${CH}:${fmtInt(r.pos)}${end}</h3><p>${typeName(r.type)}, ${bp(r.len)}</p></div>
     <div class="tiles">
-      <div class="tile"><span>Prediction <span class="badge ${ok ? "ok" : "bad"}" style="display:inline-block;margin-left:4px">${ok ? "Correct" : "Incorrect"}</span></span><b>${k ? "Real SV" : "False call"}</b></div>
+      <div class="tile"><span>Prediction <span class="badge ${ok ? "ok" : "bad"}" style="margin-left:4px">${ok ? "Correct" : "Incorrect"}</span></span><b>${k ? "Real SV" : "False call"}</b></div>
       <div class="tile"><span>GIAB truth</span><b>${r.truth ? "Real SV" : "False call"}</b></div>
       <div class="tile"><span>Score</span><b class="num">${r.p.toFixed(2)}</b>
         <div class="bar"><i style="width:${(r.p*100).toFixed(1)}%"></i><em style="left:calc(${(thr*100).toFixed(1)}% - 1px)"></em></div></div>
@@ -374,20 +550,18 @@ function renderDetail(){
       <div><h4>Evidence</h4><table class="kv">${rows}</table></div>
     </div>`;
 }
-
 function renderThreshold(m){
-  document.getElementById("thr-val").textContent = thr.toFixed(2);
+  $("thr-val").textContent = thr.toFixed(2);
   const I = D.ops.intersection;
-  document.getElementById("mets").innerHTML = [["Precision", m.P, I.p], ["Recall", m.R, I.r], ["F1", m.F, I.f1]]
-    .map(([l, v, b]) => `<div class="met"><span>${l}</span><b class="num">${v.toFixed(3)}</b><small class="num">Baseline ${b.toFixed(3)}</small></div>`).join("");
-  document.getElementById("cm").innerHTML = `
+  $("mets").innerHTML = [["Precision", m.P, I.p], ["Recall", m.R, I.r], ["F1", m.F, I.f1]]
+    .map(([l, v, b]) => `<div class="met"><span>${l}</span><b class="num">${f3(v)}</b><small class="num">Baseline ${f3(b)}</small></div>`).join("");
+  $("cm").innerHTML = `
     <tr><th></th><th>Truth: real</th><th>Truth: false</th></tr>
     <tr><th>Predicted real</th><td><b class="num">${m.tp}</b></td><td><b class="num">${m.fp}</b></td></tr>
     <tr><th>Predicted false</th><td><b class="num">${m.fn}</b></td><td><b class="num">${m.tn}</b></td></tr>`;
-  document.getElementById("note").textContent = `Baseline: calls found by both callers. Recall cannot exceed ${D.ceiling.toFixed(3)} because ${D.missed} real SVs were not found by either caller.`;
+  $("note").textContent = `Baseline: calls found by both callers. Recall cannot exceed ${f3(D.ceiling)} because ${D.missed} real SVs were not found by either caller.`;
   drawPR(m);
 }
-
 function drawPR(m){
   const W = 600, H = 380, ml = 50, mr = 16, mt = 12, mb = 44;
   const rx = [0.35, 0.75], py = [0.6, 1.0];
@@ -407,24 +581,25 @@ function drawPR(m){
     g += `<rect x="${X(o.r)-4.5}" y="${Y(o.p)-4.5}" width="9" height="9" transform="rotate(45 ${X(o.r)} ${Y(o.p)})" fill="var(--card)" stroke="var(--text)" stroke-width="1.5"/><text x="${X(o.r)+dx}" y="${Y(o.p)+dy}" text-anchor="${anc}" font-size="11" fill="var(--text)">${lbl}</text>`;
   }
   g += `<circle cx="${X(m.R)}" cy="${Y(m.P)}" r="6" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`;
-  document.getElementById("pr").innerHTML = `<defs><clipPath id="plot"><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${H-mt-mb}"/></clipPath></defs>${g}`;
+  $("pr").innerHTML = `<defs><clipPath id="plot"><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${H-mt-mb}"/></clipPath></defs>${g}`;
 }
-
-document.getElementById("legend").innerHTML = `
+$("legend").innerHTML = `
   <span><i style="background:var(--accent)"></i>Random Forest</span>
   <span><i style="background:var(--second)"></i>XGBoost</span>
   <span><svg width="10" height="10" aria-hidden="true"><rect x="2" y="2" width="6" height="6" transform="rotate(45 5 5)" fill="var(--card)" stroke="var(--text)" stroke-width="1.3"/></svg>Baselines</span>
   <span><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="var(--accent)"/></svg>Current threshold</span>
-  <span><i style="background:none;border-top:2px dashed var(--muted);height:0"></i>Max recall</span>`;
+  <span><svg width="16" height="4" aria-hidden="true"><line x1="0" x2="16" y1="2" y2="2" stroke="var(--muted)" stroke-width="2" stroke-dasharray="3 3"/></svg>Max recall</span>`;
 
-function refresh(){ const m = metricsAt(thr); renderKpis(m); renderList(); renderDetail(); renderThreshold(m); }
-const on = (id, ev, fn) => document.getElementById(id).addEventListener(ev, fn);
+function refresh(){ const m = metricsAt(thr); renderList(); renderDetail(); renderThreshold(m); }
+renderOverview(); renderData(); renderFeatures(); renderModels(); renderResults(); renderLimits();
+
+on("feat-chips", "click", e => { const b = e.target.closest("button"); if (b) { state.group = b.dataset.g; renderFeatures(); } });
 on("f-out", "change", e => { state.out = e.target.value; renderList(); });
 on("f-type", "change", e => { state.type = e.target.value; renderList(); });
 on("f-sort", "change", e => { state.sort = e.target.value; renderList(); });
 on("rows", "click", e => { const tr = e.target.closest("tr[data-id]"); if (tr) select(tr.dataset.id); });
 on("rows", "keydown", e => { const tr = e.target.closest("tr[data-id]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(tr.dataset.id); } });
-const slider = document.getElementById("thr");
+const slider = $("thr");
 slider.value = thr;
 slider.addEventListener("input", () => { thr = +slider.value; refresh(); });
 on("thr-reset", "click", () => { thr = D.threshold; slider.value = thr; refresh(); });
